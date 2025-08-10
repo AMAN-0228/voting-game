@@ -1,0 +1,122 @@
+// API Routes Constants
+// All endpoint paths for the Vibe application
+
+export const API_ROUTES = {
+  // Auth routes
+  REGISTER: '/api/auth/register',
+  LOGIN: '/api/auth/login',
+  
+  // Room routes
+  ROOMS: '/api/rooms',
+  ROOM_BY_ID: (id: string) => `/api/rooms/${id}`,
+  JOIN_ROOM: '/api/rooms/join',
+  JOIN_BY_ID: (id: string) => `/api/rooms/${id}/join`,
+  SEND_INVITE: (roomId: string) => `/api/rooms/${roomId}/invite`,
+  
+  // Socket.IO
+  SOCKET_INIT: '/api/socket',
+
+  // Game/Round management routes
+  ROUNDS_MANAGEMENT: {
+    CREATE: '/api/rounds',
+    GET_BY_ROOM: (roomId: string) => `/api/rounds/room/${roomId}`,
+    GET_BY_ID: (id: string) => `/api/rounds/${id}`,
+    START: (id: string) => `/api/rounds/${id}/start`,
+    END: (id: string) => `/api/rounds/${id}/end`,
+  },
+
+  // Answer management routes
+  ANSWERS_MANAGEMENT: {
+    SUBMIT: '/api/answers',
+    GET_BY_ROUND: (roundId: string) => `/api/answers/round/${roundId}`,
+    GET_BY_USER: (userId: string) => `/api/answers/user/${userId}`,
+    UPDATE: (id: string) => `/api/answers/${id}`,
+    DELETE: (id: string) => `/api/answers/${id}`,
+  },
+
+  // Voting routes
+  VOTES_MANAGEMENT: {
+    SUBMIT: '/api/votes',
+    GET_BY_ROUND: (roundId: string) => `/api/votes/round/${roundId}`,
+    GET_BY_USER: (userId: string) => `/api/votes/user/${userId}`,
+    DELETE: (id: string) => `/api/votes/${id}`,
+  },
+
+  // Score management routes
+  SCORES: {
+    GET_BY_ROOM: (roomId: string) => `/api/scores/room/${roomId}`,
+    GET_BY_USER: (userId: string) => `/api/scores/user/${userId}`,
+    UPDATE: '/api/scores/update',
+    LEADERBOARD: (roomId: string) => `/api/scores/leaderboard/${roomId}`,
+  },
+
+  // AI/Question generation routes
+  AI: {
+    GENERATE_QUESTION: '/api/ai/generate-question',
+    VALIDATE_ANSWER: '/api/ai/validate-answer',
+  },
+
+  // WebSocket routes
+  WEBSOCKET: {
+    CONNECT: '/api/socket',
+    ROOM_EVENTS: (roomId: string) => `/socket/room/${roomId}`,
+  },
+
+  // User management routes
+  USERS: {
+    PROFILE: '/api/users/profile',
+    UPDATE_PROFILE: '/api/users/profile',
+    GET_BY_ID: (id: string) => `/api/users/${id}`,
+  },
+} as const
+
+// WebSocket event types
+export const SOCKET_EVENTS = {
+  // Connection events
+  CONNECT: 'connect',
+  DISCONNECT: 'disconnect',
+  
+  // Room events
+  JOIN_ROOM: 'join_room',
+  LEAVE_ROOM: 'leave_room',
+  ROOM_UPDATED: 'room_updated',
+  PLAYER_JOINED: 'player_joined',
+  PLAYER_LEFT: 'player_left',
+  
+  // Game events
+  GAME_STARTED: 'game_started',
+  GAME_ENDED: 'game_ended',
+  ROUND_STARTED: 'round_started',
+  ROUND_ENDED: 'round_ended',
+  
+  // Answer events
+  ANSWER_SUBMITTED: 'answer_submitted',
+  ANSWERING_PHASE_ENDED: 'answering_phase_ended',
+  
+  // Voting events
+  VOTE_SUBMITTED: 'vote_submitted',
+  VOTING_PHASE_ENDED: 'voting_phase_ended',
+  
+  // Score events
+  SCORES_UPDATED: 'scores_updated',
+  
+  // Timer events
+  TIMER_STARTED: 'timer_started',
+  TIMER_UPDATED: 'timer_updated',
+  TIMER_ENDED: 'timer_ended',
+  
+  // Error events
+  ERROR: 'error',
+} as const
+
+// HTTP Status codes for consistent error handling
+export const HTTP_STATUS = {
+  OK: 200,
+  CREATED: 201,
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  CONFLICT: 409,
+  INTERNAL_SERVER_ERROR: 500,
+} as const

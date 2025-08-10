@@ -1,0 +1,113 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =======================
+// User Model
+// =======================
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  answers   Answer[]
+  votes     Vote[]
+  scores    Score[]
+}
+
+// =======================
+// Room Model
+// =======================
+model Room {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  status    RoomStatus @default(starting)
+  numRounds Int
+  roundTime Int       // in seconds
+  hostId    String     // Direct user ID of the room host
+  playerIds String[]   // Array of user IDs who joined the room
+  createdAt DateTime @default(now())
+
+  // Relations
+  rounds    Round[]
+  scores    Score[]
+}
+
+enum RoomStatus {
+  starting
+  in_progress
+  done
+}
+
+// =======================
+// Round Model
+// =======================
+model Round {
+  id        String   @id @default(cuid())
+  question  String
+  createdAt DateTime @default(now())
+
+  // Relations
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id])
+  answers   Answer[]
+  votes     Vote[]
+}
+
+// =======================
+// Answer Model
+// =======================
+model Answer {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+
+  // Relations
+  roundId   String
+  round     Round    @relation(fields: [roundId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  votes     Vote[]
+}
+
+// =======================
+// Vote Model
+// =======================
+model Vote {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // Relations
+  roundId   String
+  round     Round    @relation(fields: [roundId], references: [id])
+  voterId   String
+  voter     User     @relation(fields: [voterId], references: [id])
+  answerId  String
+  answer    Answer   @relation(fields: [answerId], references: [id])
+}
+
+// =======================
+// Score Model
+// =======================
+model Score {
+  id        String   @id @default(cuid())
+  points    Int      @default(0)
+
+  // Relations
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id])
+}
