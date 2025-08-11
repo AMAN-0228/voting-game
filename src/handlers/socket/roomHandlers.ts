@@ -5,53 +5,7 @@ import { getRoomState, joinRoom } from '@/actions/socket-state'
 import { addOnline, removeOnline, getOnlineList, trackJoin, trackLeave } from '@/lib/presence'
 
 export function registerRoomHandlers(io: SocketIOServer, socket: Socket) {
-  // join_room
   
-  socket.on(
-    SocketEvents.JOIN_ROOM,
-    async (payload: JoinRoomPayload, ack?: (res: { ok: boolean; data?: any; error?: string }) => void) => {
-      console.log(' ______________ join_room ______________');
-      const userId = (socket as any).data?.userId as string | undefined
-      if (!userId) {
-        ack?.({ ok: false, error: 'UNAUTHORIZED' })
-        socket.emit(SocketEvents.ERROR, { message: 'Unauthorized', code: 'UNAUTHORIZED' })
-        return
-      }
-
-      try {
-        console.log('______ room Id', payload.roomId);
-        
-        const joined = await joinRoom(userId, payload.roomId)
-        if (!joined.success) throw new Error(joined.error || 'Failed to join room')
-
-        await socket.join(payload.roomId)
-        // presence: mark user online in this room
-        addOnline(payload.roomId, userId)
-        trackJoin(socket.id, payload.roomId)
-
-        const state = await getRoomState(payload.roomId)
-        if (state.success) {
-          io.to(payload.roomId).emit(SocketEvents.ROOM_UPDATED, {
-            room: state.data,
-            players: state.data.players,
-            isHost: state.data.hostId === userId,
-          })
-          io.to(payload.roomId).emit(SocketEvents.PLAYER_JOINED, {
-            userId,
-            playersCount: state.data.players.length,
-            playersOnline: getOnlineList(payload.roomId),
-          })
-          ack?.({ ok: true, data: { room: state.data } })
-          return
-        }
-        ack?.({ ok: false, error: 'Failed to fetch room state' })
-      } catch (e: any) {
-        ack?.({ ok: false, error: e.message || 'Join failed' })
-        socket.emit(SocketEvents.ERROR, { message: e.message || 'Join failed' })
-      }
-    }
-  )
-
   // leave_room
   socket.on(
     SocketEvents.LEAVE_ROOM,
@@ -62,6 +16,13 @@ export function registerRoomHandlers(io: SocketIOServer, socket: Socket) {
       try {
         // Do NOT disconnect from DB membership; only leave socket room and update presence
         await socket.leave(payload.roomId)
+        
+        // Get user info before removing
+        const userInfo = {
+          name: (socket as any).data?.name,
+          email: (socket as any).data?.email
+        }
+        
         removeOnline(payload.roomId, userId)
         trackLeave(socket.id, payload.roomId)
 
@@ -72,11 +33,15 @@ export function registerRoomHandlers(io: SocketIOServer, socket: Socket) {
             players: state.data.players,
             isHost: state.data.hostId === userId,
           })
+          
+          // Broadcast player_left event with user info and updated online list
           io.to(payload.roomId).emit(SocketEvents.PLAYER_LEFT, {
+            roomId: payload.roomId,
             userId,
-            playersCount: state.data.players.length,
+            user: { id: userId, name: userInfo.name, email: userInfo.email },
             playersOnline: getOnlineList(payload.roomId),
           })
+          
           ack?.({ ok: true })
           return
         }

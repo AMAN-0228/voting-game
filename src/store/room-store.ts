@@ -16,8 +16,8 @@ export interface Room {
     email: string
   }
   players: Player[]
-  rounds: any[]
-  scores: any[]
+  rounds: unknown[]
+  scores: unknown[]
 }
 
 export interface Player {
@@ -42,6 +42,10 @@ export interface RoomState {
   isHost: boolean
   isInRoom: boolean
   
+  // Room loading states
+  isLoading: boolean
+  error: string | null
+  
   // Room creation/joining
   isCreatingRoom: boolean
   isJoiningRoom: boolean
@@ -56,6 +60,9 @@ export interface RoomState {
   setIsHost: (isHost: boolean) => void
   setIsInRoom: (inRoom: boolean) => void
   
+  setLoading: (loading: boolean) => void
+  setError: (error: string | null) => void
+  
   setIsCreatingRoom: (creating: boolean) => void
   setIsJoiningRoom: (joining: boolean) => void
   setJoinError: (error: string | null) => void
@@ -64,6 +71,7 @@ export interface RoomState {
   addPlayer: (player: Player) => void
   removePlayer: (playerId: string) => void
   updatePlayerStatus: (playerId: string, isOnline: boolean) => void
+  updatePlayers: (players: Player[]) => void
   
   // Room status management
   updateRoomStatus: (status: Room['status']) => void
@@ -82,6 +90,9 @@ export const useRoomStore = create<RoomState>()(
       
       isHost: false,
       isInRoom: false,
+      
+      isLoading: false,
+      error: null,
       
       isCreatingRoom: false,
       isJoiningRoom: false,
@@ -112,6 +123,9 @@ export const useRoomStore = create<RoomState>()(
       
       setIsHost: (isHost) => set({ isHost }),
       setIsInRoom: (inRoom) => set({ isInRoom: inRoom }),
+      
+      setLoading: (loading) => set({ isLoading: loading }),
+      setError: (error) => set({ error }),
       
       setIsCreatingRoom: (creating) => set({ isCreatingRoom: creating }),
       setIsJoiningRoom: (joining) => set({ isJoiningRoom: joining }),
@@ -152,6 +166,12 @@ export const useRoomStore = create<RoomState>()(
         
         return { currentRoom: updatedRoom }
       }),
+      
+      updatePlayers: (players: Player[]) => set((state) => ({
+        currentRoom: state.currentRoom
+          ? { ...state.currentRoom, players }
+          : null
+      })),
       
       updateRoomStatus: (status) => set((state) => ({
         currentRoom: state.currentRoom

@@ -43,10 +43,28 @@ export interface AnswerSubmitPayload { roundId: string; content: string }
 export interface CastVotePayload { roundId: string; answerId: string }
 export interface SyncStatePayload { roomId: string }
 
+export interface UserInfo {
+  id: string
+  name?: string | null
+  email?: string | null
+}
+
+export interface RoomData {
+  id: string
+  code: string
+  status: string
+  numRounds: number
+  roundTime: number
+  hostId: string
+  playerIds: string[]
+  createdAt: string
+  scores?: Array<{ userId: string; points: number }>
+}
+
 export interface ServerToClientEvents {
-  [SocketEvents.ROOM_UPDATED]: { room: any; players?: any[]; isHost?: boolean }
-  [SocketEvents.PLAYER_JOINED]: { userId: string; playersCount?: number; user?: any }
-  [SocketEvents.PLAYER_LEFT]: { userId: string; playersCount?: number }
+  [SocketEvents.ROOM_UPDATED]: { room: RoomData; players?: string[]; isHost?: boolean }
+  [SocketEvents.PLAYER_JOINED]: { roomId: string; user: UserInfo; playersOnline: string[] }
+  [SocketEvents.PLAYER_LEFT]: { roomId: string; userId: string; user: UserInfo; playersOnline: string[] }
   [SocketEvents.GAME_STARTED]: { roomId: string; gamePhase: 'answering' | 'voting'; message?: string }
   [SocketEvents.ANSWERING_PHASE_STARTED]: { roomId: string; roundId: string; question: string }
   [SocketEvents.VOTING_PHASE_STARTED]: { roomId: string; roundId: string; answers: Array<{ id: string; content: string }> }

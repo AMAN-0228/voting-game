@@ -1,6 +1,6 @@
 'use client'
 
-import { useRoom } from '@/hooks/useRoom'
+import { useRoomStore } from '@/store/room-store'
 import { GameRoomBase } from './GameRoomBase'
 
 interface RoomLobbyProps {
@@ -8,24 +8,29 @@ interface RoomLobbyProps {
 }
 
 export const RoomLobby = ({ roomId }: RoomLobbyProps) => {
-  // Use the reusable room hook for fetching and joining
-  const { 
-    isLoading, 
-    error, 
-    isJoining, 
-    refetch 
-  } = useRoom(roomId, { 
-    autoJoin: true,
-    onError: (err) => console.error('Room error:', err)
-  })
+  // Get room data from store instead of fetching from backend
+  const { currentRoom } = useRoomStore()
+
+  // If no room data in store, show loading
+  if (!currentRoom) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <h2 className="text-xl font-bold text-white mb-2">Loading Room Data</h2>
+          <p className="text-purple-200">Getting room information from memory...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <GameRoomBase
       roomId={roomId}
-      isLoading={isLoading}
-      error={error}
-      isJoining={isJoining}
-      refetch={refetch}
+      isLoading={false} // No loading state in lobby
+      error={null} // No error state in lobby
+      isJoining={false} // No joining state in lobby
+      refetch={() => {}} // No refetch needed in lobby
     />
   )
 }

@@ -132,6 +132,9 @@ export const roomService = {
   join: (roomId: string) =>
     httpClient.post<Room>(API_ROUTES.JOIN_BY_ID(roomId)),
   
+  joinByCode: (code: string) =>
+    httpClient.post<Room>(API_ROUTES.JOIN_BY_CODE(code)),
+  
   sendInvite: (roomId: string, userIds: string[]) =>
     httpClient.post<{ invites: any[]; message: string }>(
       API_ROUTES.SEND_INVITE(roomId), 
@@ -146,6 +149,7 @@ export const roomHelpers = {
   createRoom: roomService.create,
   getRoomById: roomService.getById,
   joinRoomById: roomService.join,
+  joinRoomByCode: roomService.joinByCode,
   sendInvite: roomService.sendInvite,
 }
 

@@ -13,23 +13,12 @@ export const useWebSocket = () => {
     isConnecting, 
     connectionError,
     currentRoomId,
-    joinRoom: joinRoomSocket,
     leaveRoom: leaveRoomSocket,
     submitAnswer: submitAnswerSocket,
     submitVote: submitVoteSocket,
     startGame: startGameSocket,
     endGame: endGameSocket
   } = useWebSocketStore()
-
-  // Join a room using the global socket
-  const joinRoom = useCallback((roomId: string) => {
-    if (!socket || !isConnected) {
-      console.error('Socket not connected')
-      return
-    }
-
-    joinRoomSocket(roomId)
-  }, [socket, isConnected, joinRoomSocket])
 
   // Leave current room using the global socket
   const leaveRoom = useCallback(() => {
@@ -76,7 +65,6 @@ export const useWebSocket = () => {
     connectionError,
     
     // Room methods
-    joinRoom,
     leaveRoom,
     currentRoomId,
     

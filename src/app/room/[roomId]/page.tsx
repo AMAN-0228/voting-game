@@ -1,18 +1,15 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useCallback, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { AlertCircle, Home, Gamepad2 } from 'lucide-react'
 import { useRoom } from '@/hooks/useRoom'
 import { useRoomStore } from '@/store/room-store'
-import { useWebSocketStore } from '@/store/websocket-store'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
-import { SOCKET_EVENTS } from '@/constants/api-routes'
-import { Users, Gamepad2, Clock, Crown, Wifi, WifiOff, Loader2, AlertCircle, Home, Play } from 'lucide-react'
+import { useWebSocket } from '@/hooks/useWebSocket'
 import { RoomPageHeader } from '@/components/rooms/RoomPageHeader'
 import { RoomPageLoading } from '@/components/rooms/RoomPageLoading'
 import { RoomNotFoundScreen } from '@/components/rooms/RoomNotFound'
@@ -20,7 +17,6 @@ import { RoomCodeSection } from '@/components/rooms/RoomCodeSection'
 import { HostInfoCard } from '@/components/rooms/HostInfoCard'
 import { GameSettingsCard } from '@/components/rooms/GameSettingCard'
 import { PlayersListCard } from '@/components/rooms/PlayerListCard'
-import { ConnectionStatus } from '@/components/rooms/ConnectStatus'
 import { ActionButtons } from '@/components/rooms/ActionButtons'
 
 interface RoomPageProps {
@@ -30,124 +26,45 @@ interface RoomPageProps {
 export default function RoomPage({ params }: RoomPageProps) {
   const { data: session } = useSession()
   const router = useRouter()
-  
-  const {
-    currentRoom,
-    isInRoom,
-    addPlayer,
-    removePlayer
-  } = useRoomStore()
-  
-  const { 
-    socket, 
-    isConnected, 
-    currentRoomId, 
-    setCurrentRoomId, 
-    isConnecting,
-    joinRoom: joinRoomSocket
-  } = useWebSocketStore()
-  
-  const [roomId, setRoomId] = useState<string>('')
-  const { isLoading, error, isJoining, fetchRoom, joinRoomAction } = useRoom(roomId, { autoJoin: false })
+  const [roomId, setRoomId] = useState('')
 
-  // Extract roomId from params
   useEffect(() => {
-    params.then(({ roomId: id }) => setRoomId(id)).catch((error: unknown) => {
-      console.error('Failed to extract room ID from params:', error)
-      toast.error('Invalid room ID', { duration: 4000 })
-    })
+    params.then(p => setRoomId(p.roomId))
   }, [params])
+
+  const { 
+    isLoading, 
+    error,
+    fetchRoom, 
+    joinRoomAction 
+  } = useRoom(roomId, { autoJoin: false })
+
+  const { 
+    currentRoom, 
+    isInRoom 
+  } = useRoomStore()
+
+  const { isConnected } = useWebSocket()
 
   // Load room data on mount
   useEffect(() => {
+    
     if (roomId && session?.user?.id && session?.user?.email) {
       void fetchRoom()
     }
   }, [roomId, session?.user?.id, session?.user?.email, fetchRoom])
 
-  // If already in room, redirect to lobby - but only after we're sure the user is fully joined
+  // If already in room, redirect to lobby
   useEffect(() => {
     if (isInRoom && roomId && currentRoom && !isLoading) {
-      // Only redirect if we have room data and we're not in the middle of loading
       router.replace(`/room/${roomId}/lobby`)
     }
   }, [isInRoom, router, roomId, currentRoom, isLoading])
 
-  // Join room via WebSocket when connected and room data is loaded
-  useEffect(() => {
-    if (roomId && isConnected && socket && currentRoom && !isInRoom && !currentRoomId) {
-      try {
-        // Join the room via WebSocket
-        joinRoomSocket(roomId)
-        setCurrentRoomId(roomId)
-        
-        // Show connection success
-        toast.success('Connected to room for real-time updates!', {
-          duration: 2000,
-        })
-      } catch (error) {
-        console.error('Failed to join room via WebSocket:', error)
-        toast.error('Failed to join room for real-time updates', {
-          duration: 4000,
-        })
-      }
-    }
-  }, [roomId, isConnected, socket, currentRoom, isInRoom, currentRoomId, joinRoomSocket, setCurrentRoomId])
-
-  // Set up real-time event listeners when socket is available
-  useEffect(() => {
-    if (!socket || !isConnected) return
-
-    // Set up real-time event listeners
-    const handlePlayerJoined = (data: { user?: { id: string; name?: string; email: string } }) => {
-      if (data.user) {
-        addPlayer({
-          id: data.user.id,
-          name: data.user.name,
-          email: data.user.email,
-          isOnline: true,
-          joinedAt: new Date().toISOString(),
-        })
-        
-        // Show real-time notification
-        toast.success(`${data.user.name || data.user.email} has joined the room!`, {
-          duration: 3000,
-        })
-      }
-    }
-
-    const handlePlayerLeft = (data: { userId?: string }) => {
-      if (data.userId) {
-        removePlayer(data.userId)
-        
-        // Show real-time notification
-        toast.info('A player has left the room', {
-          duration: 3000,
-        })
-      }
-    }
-
-    const handleRoomUpdated = (data: { room?: unknown }) => {
-      if (data.room) {
-        // Room data will be updated via the store
-        toast.info('Room has been updated', {
-          duration: 2000,
-        })
-      }
-    }
-
-    // Add event listeners
-    socket.on(SOCKET_EVENTS.PLAYER_JOINED, handlePlayerJoined)
-    socket.on(SOCKET_EVENTS.PLAYER_LEFT, handlePlayerLeft)
-    socket.on(SOCKET_EVENTS.ROOM_UPDATED, handleRoomUpdated)
-
-    // Cleanup event listeners
-    return () => {
-      socket.off(SOCKET_EVENTS.PLAYER_JOINED, handlePlayerJoined)
-      socket.off(SOCKET_EVENTS.PLAYER_LEFT, handlePlayerLeft)
-      socket.off(SOCKET_EVENTS.ROOM_UPDATED, handleRoomUpdated)
-    }
-  }, [socket, isConnected, addPlayer, removePlayer])
+  // Check if current user is already a player in this room
+  const isCurrentUserInRoom = useMemo(() => {
+    return isInRoom
+  }, [currentRoom, session?.user?.id])
 
   const handleJoinRoom = useCallback(async () => {
     if (!roomId || !session?.user?.id || !session?.user?.email) {
@@ -175,7 +92,13 @@ export default function RoomPage({ params }: RoomPageProps) {
     }
   }, [roomId, session?.user?.id, session?.user?.email, joinRoomAction, router])
 
-  const canJoin = !!currentRoom && !isInRoom && isConnected && session?.user?.email
+  const handleGoToLobby = useCallback(() => {
+    if (roomId) {
+      router.push(`/room/${roomId}/lobby`)
+    }
+  }, [roomId, router])
+
+  const canJoin = !!currentRoom && !isInRoom && isConnected && !!session?.user?.email
 
   if (!session?.user?.id || !session?.user?.email) {
     return (
@@ -184,7 +107,7 @@ export default function RoomPage({ params }: RoomPageProps) {
           <CardContent className="pt-8 pb-8">
             <div className="text-center">
               <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertCircle className="w-8 h-8 text-white" />
+                <AlertCircle className="w-10 h-10 text-white" />
               </div>
               <h2 className="text-xl font-bold text-gray-800 mb-2">Authentication Required</h2>
               <p className="text-gray-600">Please log in with a valid account to join this room</p>
@@ -194,7 +117,6 @@ export default function RoomPage({ params }: RoomPageProps) {
       </div>
     )
   }
-  console.log('___________ room page', {currentRoom, isInRoom, isLoading, error, roomId});
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -218,7 +140,7 @@ export default function RoomPage({ params }: RoomPageProps) {
             <CardContent className="p-8">
               {isLoading && <RoomPageLoading />}
 
-              {error && <RoomNotFoundScreen  roomId={roomId} onGoHome={() => router.push('/')} />}
+              {error && <RoomNotFoundScreen roomId={roomId} onGoHome={() => router.push('/')} />}
               
               {!isLoading && !error && !currentRoom && roomId && (
                 <div className="py-12 text-center">
@@ -252,7 +174,7 @@ export default function RoomPage({ params }: RoomPageProps) {
                       />
 
                       {/* Game Settings */}
-                      <GameSettingsCard
+                      <GameSettingsCard 
                         numRounds={currentRoom.numRounds}
                         roundTime={currentRoom.roundTime}
                       />
@@ -268,37 +190,33 @@ export default function RoomPage({ params }: RoomPageProps) {
                     </div>
                   </div>
 
-                  {/* Connection Status */}
-                  <ConnectionStatus
-                    isConnected={isConnected}
-                    isConnecting={isConnecting}
-                  />
-
                   {/* Action Buttons */}
-                  <ActionButtons
-                    canJoin={!!canJoin}
-                    isJoining={isJoining}
-                    handleJoinRoom={handleJoinRoom}
-                    isConnected={isConnected}
-                    isConnecting={isConnecting}
-                    isInRoom={isInRoom}
-                    onGoLobby={() => router.push(`/room/${roomId}/lobby`)}
-                  />
-
-                  {/* Navigation to Lobby for joined users */}
-                  {isInRoom && (
-                    <div className="pt-6 text-center">
-                      <Button 
-                        onClick={() => router.push(`/room/${roomId}/lobby`)}
-                        variant="outline"
-                        size="lg"
-                        className="w-full md:w-auto px-12 py-6 text-lg font-bold border-2 border-purple-300 text-purple-700 hover:bg-purple-50 hover:border-purple-400 transition-all duration-200"
-                      >
-                        <Gamepad2 className="w-5 h-5 mr-3" />
-                        Go to Lobby
-                      </Button>
+                  <div className="pt-6 border-t border-gray-200">
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                      {isCurrentUserInRoom ? (
+                        // User is already in room - show "Go to Lobby" button
+                        <Button 
+                          onClick={handleGoToLobby}
+                          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
+                          size="lg"
+                        >
+                          <Gamepad2 className="w-5 h-5 mr-2" />
+                          Go to Lobby
+                        </Button>
+                      ) : (
+                        // User is not in room - show "Join Room" button
+                        <ActionButtons 
+                          canJoin={canJoin}
+                          isJoining={false}
+                          handleJoinRoom={handleJoinRoom}
+                          isConnected={isConnected}
+                          isConnecting={false}
+                          isInRoom={isInRoom}
+                          onGoLobby={handleGoToLobby}
+                        />
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
             </CardContent>

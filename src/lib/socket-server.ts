@@ -4,7 +4,7 @@ import { getToken } from 'next-auth/jwt'
 import { registerRoomHandlers } from '@/handlers/socket/roomHandlers'
 import { registerGameHandlers } from '@/handlers/socket/gameHandlers'
 import { registerLobbyHandlers } from '@/handlers/socket/lobbyHandlers'
-import { roomsForSocket, removeOnline, getOnlineList } from '@/lib/presence'
+import { roomsForSocket, removeOnline, getOnlineList, getUserInfo } from '@/lib/presence'
 import { SOCKET_EVENTS } from '@/constants/api-routes'
 
 let ioSingleton: IOServer | null = null
@@ -40,7 +40,6 @@ export function initSocketServer(httpServer: HTTPServer): IOServer {
   io.use(async (socket, next) => {
     try {
       const cookie = socket.request.headers.cookie || ''
-      // console.log('__________ Cookie:', cookie);
       const secret = process.env.NEXTAUTH_SECRET
       if (!secret) return next(new Error('Missing NEXTAUTH_SECRET'))
 
@@ -78,7 +77,6 @@ export function initSocketServer(httpServer: HTTPServer): IOServer {
         const { getToken } = await import('next-auth/jwt')
         token = await getToken({ req: { headers: { cookie } } as any, secret, secureCookie: process.env.NODE_ENV === 'production' })
       }
-      // console.log('__________ Token:', token);
       const userIdFromToken = (token as any)?.id || (token as any)?.sub
       if (!userIdFromToken) return next(new Error('Unauthorized'))
 
@@ -95,13 +93,11 @@ export function initSocketServer(httpServer: HTTPServer): IOServer {
       return next(new Error('Auth error'))
     }
   })
-  console.log(' ______________ authencitcated ______________');
   
   io.on('connection', (socket) => {
     if (process.env.NODE_ENV !== 'production') {
       console.log(`[socket] connect ${socket.id} user=${(socket as any).data?.userId}`)
     }
-    console.log(' ______________ connection ______________');
     // Register modular handlers
     registerRoomHandlers(io, socket)
     registerGameHandlers(io, socket)
@@ -113,12 +109,20 @@ export function initSocketServer(httpServer: HTTPServer): IOServer {
       }
       const userId = (socket as any).data?.userId as string | undefined
       if (!userId) return
+      
       const rooms = roomsForSocket(socket.id)
       for (const roomId of rooms) {
         removeOnline(roomId, userId)
+        
+        // Get user info before removing
+        const userInfo = getUserInfo(userId)
+        
+        // Broadcast player_offline event with updated online list
         io.to(roomId).emit(SOCKET_EVENTS.PLAYER_LEFT, {
+          roomId,
           userId,
-          playersOnline: getOnlineList(roomId),
+          user: userInfo,
+          playersOnline: getOnlineList(roomId)
         })
       }
     })

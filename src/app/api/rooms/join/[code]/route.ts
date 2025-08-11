@@ -7,23 +7,19 @@ import { getIO } from '@/lib/socket-server'
 import { z } from 'zod'
 import { SOCKET_EVENTS } from '@/constants/api-routes'
 
-const ParamsSchema = z.object({
-  roomId: z.string().min(1),
-})
-
-export async function POST(req: NextRequest, context: { params: Promise<{ roomId: string }> }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ code: string }> }) {
   const resolvedParams = await context.params
-  const parsed = ParamsSchema.safeParse(resolvedParams)
-  if (!parsed.success) return NextResponse.json({ error: 'Invalid room id' }, { status: 400 })
+  const parsed = z.object({ code: z.string().min(1) }).safeParse(resolvedParams)
+  if (!parsed.success) return NextResponse.json({ error: 'Invalid room code' }, { status: 400 })
 
   const session = await getServerSession(authOptions)
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const roomId = parsed.data.roomId
-
+  const roomCode = parsed.data.code
+  
   // Persist membership (idempotent)
-  const result = await joinRoom(roomId, '', userId, 'id')
+  const result = await joinRoom('', roomCode, userId, 'code')
   if (!result.success) {
     const status = result.code === 'NOT_FOUND' ? HTTP_STATUS.NOT_FOUND : HTTP_STATUS.INTERNAL_SERVER_ERROR
     return NextResponse.json({ error: result.error, code: result.code }, { status })
@@ -37,10 +33,10 @@ export async function POST(req: NextRequest, context: { params: Promise<{ roomId
   if (io) {
     // Get the current online players for this room
     const { getOnlineList } = await import('@/lib/presence')
-    const playersOnline = getOnlineList(roomId)
+    const playersOnline = getOnlineList(room.id)
     
-    io.to(roomId).emit(SOCKET_EVENTS.PLAYER_JOINED, {
-      roomId,
+    io.to(room.id).emit(SOCKET_EVENTS.PLAYER_JOINED, {
+      roomId: room.id,
       user,
       playersOnline
     })

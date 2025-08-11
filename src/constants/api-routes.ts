@@ -11,6 +11,7 @@ export const API_ROUTES = {
   ROOM_BY_ID: (id: string) => `/api/rooms/${id}`,
   JOIN_ROOM: '/api/rooms/join',
   JOIN_BY_ID: (id: string) => `/api/rooms/${id}/join`,
+  JOIN_BY_CODE: (code: string) => `/api/rooms/join/${code}`,
   SEND_INVITE: (roomId: string) => `/api/rooms/${roomId}/invite`,
   
   // Socket.IO

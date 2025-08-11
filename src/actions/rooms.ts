@@ -168,26 +168,28 @@ export async function updateRoomStatus(roomId: string, status: 'starting' | 'in_
   }
 }
 
-export async function joinRoom(roomId: string, userId: string): Promise<ActionResult> {
+export async function joinRoom(roomId: string, code: string, userId: string, joinBy: 'id' | 'code'): Promise<ActionResult> {
   try {
     // First, get the current room to check if user is already in playerIds
+    const whereClause = joinBy === 'id' ? { id: roomId } : { code }
     const currentRoom = await prisma.room.findUnique({
-      where: { id: roomId },
-      select: { playerIds: true }
+      where: whereClause,
+      select: {id: true, playerIds: true }
     })
+    
 
     if (!currentRoom) {
       return { success: false, error: 'Room not found', code: 'NOT_FOUND' }
     }
-
+    if (currentRoom.playerIds.includes(userId)) {
+      return { success: false, error: 'Already in room', code: 'ALREADY_IN_ROOM' }
+    }
     // Add user to playerIds if not already present (idempotent)
-    const updatedPlayerIds = currentRoom.playerIds.includes(userId) 
-      ? currentRoom.playerIds 
-      : [...currentRoom.playerIds, userId]
+    const updatedPlayerIds = [...currentRoom.playerIds, userId]
 
     // Update room with new playerIds
     const room = await prisma.room.update({
-      where: { id: roomId },
+      where: { id: currentRoom.id },
       data: { playerIds: updatedPlayerIds },
       select: {
         id: true,

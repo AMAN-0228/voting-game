@@ -236,17 +236,15 @@ class SocketClient {
       if (data.user) {
         roomStore.addPlayer({
           id: data.user.id,
-          name: data.user.name,
-          email: data.user.email,
+          name: data.user.name || undefined,
+          email: data.user.email || undefined,
           isOnline: true,
           joinedAt: new Date().toISOString(),
         })
       }
       
-      // Update online players count
-      gameStore.setPlayersOnline(
-        Array.from({ length: data.playersCount }, (_, i) => `player-${i}`)
-      )
+      // Update online players list
+      gameStore.setPlayersOnline(data.playersOnline)
     })
 
     this.socket.on(SOCKET_EVENTS.PLAYER_LEFT, (data) => {
@@ -264,10 +262,8 @@ class SocketClient {
       
       if (data.userId) roomStore.updatePlayerStatus(data.userId, false)
       
-      // Update online players count
-      gameStore.setPlayersOnline(
-        Array.from({ length: data.playersCount }, (_, i) => `player-${i}`)
-      )
+      // Update online players list
+      gameStore.setPlayersOnline(data.playersOnline)
     })
 
     // Game events
@@ -511,75 +507,6 @@ export const useSocket = () => {
     getSocket: socketClient.getSocket.bind(socketClient),
     isConnected: socketClient.isConnected.bind(socketClient),
   }
-}
-
-// API + Socket join flow
-export async function joinRoom(roomId: string): Promise<{ ok: boolean; error?: string }> {
-  const { roomHelpers } = await import('@/lib/api-helpers')
-  
-  try {
-    // First, call API to persist membership in database
-    const apiResult = await roomHelpers.joinRoomById(roomId)
-    
-    if (apiResult.error) {
-      return { ok: false, error: apiResult.error || 'Failed to join room' }
-    }
-
-    // Update room store with fresh data from API
-    if (apiResult.data) {
-      const { useRoomStore } = require('@/store/room-store')
-      const roomStore = useRoomStore.getState()
-      // Map API response to store format
-      const roomData = {
-        ...apiResult.data,
-        players: apiResult.data.playerIds?.map((playerId: string) => ({
-          id: playerId,
-          isOnline: true,
-          joinedAt: new Date().toISOString()
-        })) || []
-      }
-      roomStore.updateCurrentRoom(roomData as any)
-    }
-
-    // Only emit socket event AFTER successful database update
-    const socket = socketClient.getSocket()
-    if (socket && socket.connected) {
-      socket.emit(SOCKET_EVENTS.JOIN_ROOM, { roomId })
-    }
-
-    return { ok: true }
-  } catch (error: any) {
-    return { ok: false, error: error?.message || 'Failed to join room' }
-  }
-}
-
-// Emit helpers with ack and optimistic updates
-export async function joinRoomWithAck(roomId: string): Promise<{ ok: boolean; error?: string }> {
-  const socket = socketClient.getSocket()
-  if (!socket || !socket.connected) return { ok: false, error: 'Not connected' }
-  
-  const { useWebSocketStore } = require('@/store/websocket-store')
-  const { useRoomStore } = require('@/store/room-store')
-  
-  const wsStore = useWebSocketStore.getState()
-  const roomStore = useRoomStore.getState()
-  
-  // optimistic
-  const prevRoomId = wsStore.currentRoomId
-  wsStore.setCurrentRoomId(roomId)
-  
-  return new Promise((resolve) => {
-    socket.emit('join_room', { roomId }, (res: { ok: boolean; error?: string; data?: any }) => {
-      if (!res?.ok) {
-        // rollback
-        wsStore.setCurrentRoomId(prevRoomId)
-        resolve({ ok: false, error: res?.error || 'Join failed' })
-        return
-      }
-      if (res.data?.room) roomStore.updateCurrentRoom(res.data.room as any)
-      resolve({ ok: true })
-    })
-  })
 }
 
 export async function leaveRoomWithAck(): Promise<{ ok: boolean; error?: string }> {

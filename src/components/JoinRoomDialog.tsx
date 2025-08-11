@@ -37,12 +37,12 @@ export function JoinRoomDialog({ children }: JoinRoomDialogProps) {
     setIsLoading(true)
     try {
       // First, find the room by code
-      const roomsResponse = await roomHelpers.listRooms()
+      const roomsResponse = await roomHelpers.joinRoomByCode(roomCode)
       if (roomsResponse.error) {
         throw new Error(roomsResponse.error)
       }
-      const rooms = roomsResponse.data || []
-      const room = rooms.find((r: any) => r.code.toLowerCase() === roomCode.toLowerCase())
+      const room = roomsResponse.data || []
+      // const room = rooms.find((r: any) => r.code.toLowerCase() === roomCode.toLowerCase())
       
       if (!room) {
         toast.error('Room not found. Please check the code and try again.')
@@ -50,7 +50,7 @@ export function JoinRoomDialog({ children }: JoinRoomDialogProps) {
       }
 
       // Join the room
-      await roomHelpers.joinRoomById(room.id)
+      // await roomHelpers.joinRoomById(room.id)
       
       toast.success('Successfully joined the room!')
       setOpen(false)

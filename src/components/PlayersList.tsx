@@ -62,6 +62,7 @@ export const PlayersList = ({ players, onlinePlayers, hostId }: PlayersListProps
                 </div>
                 {(() => {
                   const host = players.find(p => p.id === hostId)
+                  console.log('host', host)
                   if (!host) return null
                   
                   const isOnline = onlinePlayers.includes(host.id)
@@ -74,7 +75,7 @@ export const PlayersList = ({ players, onlinePlayers, hostId }: PlayersListProps
                           </div>
                           <div>
                             <div className="flex items-center gap-2 mb-1">
-                                                          <p className="font-bold text-gray-800 text-lg">
+                              <p className="font-bold text-gray-800 text-lg">
                               {host.name || host.email || `Player ${host.id.slice(0, 8)}`}
                             </p>
                               <Badge variant="default" className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0">
