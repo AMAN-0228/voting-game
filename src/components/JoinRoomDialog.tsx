@@ -41,8 +41,7 @@ export function JoinRoomDialog({ children }: JoinRoomDialogProps) {
       if (roomsResponse.error) {
         throw new Error(roomsResponse.error)
       }
-      const room = roomsResponse.data || []
-      // const room = rooms.find((r: any) => r.code.toLowerCase() === roomCode.toLowerCase())
+      const room = roomsResponse.data
       
       if (!room) {
         toast.error('Room not found. Please check the code and try again.')
@@ -57,7 +56,9 @@ export function JoinRoomDialog({ children }: JoinRoomDialogProps) {
       setRoomCode('')
       
       // Navigate to the room
-      router.push(`/room/${room.id}`)
+      if (room) {
+        router.push(`/room/${room.id}`)
+      }
     } catch (error) {
       console.error('Failed to join room:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to join room')

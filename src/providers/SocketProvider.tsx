@@ -16,9 +16,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
   const { 
     setIsConnecting, 
     setSocket, 
-    setIsConnected, 
     setConnectionError,
-    setCurrentRoomId,
     resetWebSocketState
   } = useWebSocketStore()
 
@@ -73,5 +71,5 @@ export function SocketProvider({ children }: SocketProviderProps) {
 
   return <>{children}</>
 }
-
 export default SocketProvider
+

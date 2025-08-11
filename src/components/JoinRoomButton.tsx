@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { joinRoom } from '@/lib/socket-client'
+import { roomHelpers } from '@/lib/api-helpers'
 import { useRoomStore } from '@/store/room-store'
 import { Button } from '@/components/ui/button'
 import { Users, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
@@ -25,9 +25,10 @@ export default function JoinRoomButton({ roomId, onSuccess }: Props) {
     setSuccess(false)
     
     try {
-      const res = await joinRoom(roomId)
-      if (!res.ok) {
-        setError(res.error || 'Failed to join room')
+      // Use centralized API helper instead of socket client
+      const result = await roomHelpers.joinRoomById(roomId)
+      if (result.error) {
+        setError(result.error || 'Failed to join room')
         return
       }
       
@@ -41,8 +42,9 @@ export default function JoinRoomButton({ roomId, onSuccess }: Props) {
       } else {
         router.push(`/room/${roomId}`)
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to join room')
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to join room'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
