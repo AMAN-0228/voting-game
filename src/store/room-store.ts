@@ -83,7 +83,7 @@ export interface RoomState {
 
 export const useRoomStore = create<RoomState>()(
   devtools(
-    subscribeWithSelector((set, get) => ({
+    subscribeWithSelector((set) => ({
       // Initial state
       currentRoom: null,
       userRooms: [],
@@ -100,7 +100,7 @@ export const useRoomStore = create<RoomState>()(
       
       // Actions
       setCurrentRoom: (room, currentUserId) => {
-        console.log('___________ setCurrentRoom', room);
+        console.log('___________ setCurrentRoom', { room, currentUserId, isInRoom: !!room, isHost: room ? room.hostId === currentUserId : false });
         
         set({ 
           currentRoom: room,
@@ -121,8 +121,15 @@ export const useRoomStore = create<RoomState>()(
         userRooms: [...state.userRooms, room]
       })),
       
-      setIsHost: (isHost) => set({ isHost }),
-      setIsInRoom: (inRoom) => set({ isInRoom: inRoom }),
+      setIsHost: (isHost) => {
+        console.log('___________ setIsHost', isHost);
+        set({ isHost })
+      },
+      
+      setIsInRoom: (inRoom) => {
+        console.log('___________ setIsInRoom', inRoom);
+        set({ isInRoom: inRoom })
+      },
       
       setLoading: (loading) => set({ isLoading: loading }),
       setError: (error) => set({ error }),

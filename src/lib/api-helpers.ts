@@ -171,14 +171,6 @@ export const roundService = {
     httpClient.post(API_ROUTES.ROUNDS_MANAGEMENT.END(id)),
 }
 
-// Legacy alias for backward compatibility
-export const roundHelpers = {
-  createRound: roundService.create,
-  getRoundsByRoom: roundService.getByRoom,
-  getRoundById: roundService.getById,
-  startRound: roundService.start,
-  endRound: roundService.end,
-}
 
 // Answer service - answer management
 export const answerService = {

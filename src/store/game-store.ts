@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { devtools, subscribeWithSelector } from 'zustand/middleware'
+import { devtools, subscribeWithSelector, persist } from 'zustand/middleware'
 
 // Types for game state
 export interface Round {
@@ -89,113 +89,107 @@ export interface GameState {
   resetGameState: () => void
 }
 
+// Initial state that's safe for SSR
+const initialState = {
+  currentRound: null,
+  rounds: [],
+  scores: [],
+  gamePhase: { type: 'waiting' },
+  userAnswer: '',
+  hasSubmittedAnswer: false,
+  hasVoted: false,
+  votedAnswerId: null,
+  isConnected: false,
+  playersOnline: [],
+} as const
+
 export const useGameStore = create<GameState>()(
   devtools(
-    subscribeWithSelector((set, get) => ({
-      // Initial state
-      currentRound: null,
-      rounds: [],
-      scores: [],
-      gamePhase: { type: 'waiting' },
-      
-      userAnswer: '',
-      hasSubmittedAnswer: false,
-      hasVoted: false,
-      votedAnswerId: null,
-      
-      isConnected: false,
-      playersOnline: [],
-      
-      // Actions
-      setCurrentRound: (round) => set({ currentRound: round }),
-      
-      addRound: (round) => set((state) => ({
-        rounds: [...state.rounds, round]
-      })),
-      
-      updateRounds: (rounds) => set({ rounds }),
-      
-      setScores: (scores) => set({ scores }),
-      
-      updateScore: (userId, points) => set((state) => ({
-        scores: state.scores.map(score =>
-          score.userId === userId
-            ? { ...score, points }
-            : score
-        )
-      })),
-      
-      setGamePhase: (phase) => set({ gamePhase: phase }),
-      
-      setUserAnswer: (answer) => set({ userAnswer: answer }),
-      setHasSubmittedAnswer: (submitted) => set({ hasSubmittedAnswer: submitted }),
-      setHasVoted: (voted) => set({ hasVoted: voted }),
-      setVotedAnswerId: (answerId) => set({ votedAnswerId: answerId }),
-      
-      addAnswer: (answer) => set((state) => {
-        if (!state.currentRound) return state
+    persist(
+      (set, get) => ({
+        // Use the initial state object
+        ...initialState,
         
-        const updatedRound = {
-          ...state.currentRound,
-          answers: [...state.currentRound.answers, answer]
-        }
+        // Actions
+        setCurrentRound: (round) => set({ currentRound: round }),
         
-        return {
-          currentRound: updatedRound,
-          rounds: state.rounds.map(round =>
-            round.id === updatedRound.id ? updatedRound : round
+        addRound: (round) => set((state) => ({
+          rounds: [...state.rounds, round]
+        })),
+        
+        updateRounds: (rounds) => set({ rounds }),
+        
+        setScores: (scores) => set({ scores }),
+        
+        updateScore: (userId, points) => set((state) => ({
+          scores: state.scores.map(score =>
+            score.userId === userId
+              ? { ...score, points }
+              : score
           )
-        }
-      }),
-      
-      addVote: (vote) => set((state) => {
-        if (!state.currentRound) return state
+        })),
         
-        const updatedAnswers = state.currentRound.answers.map(answer =>
-          answer.id === vote.answerId
-            ? { ...answer, votes: [...answer.votes, vote] }
-            : answer
-        )
+        setGamePhase: (phase) => set({ gamePhase: phase }),
         
-        const updatedRound = {
-          ...state.currentRound,
-          answers: updatedAnswers,
-          votes: [...state.currentRound.votes, vote]
-        }
+        setUserAnswer: (answer) => set({ userAnswer: answer }),
+        setHasSubmittedAnswer: (submitted) => set({ hasSubmittedAnswer: submitted }),
+        setHasVoted: (voted) => set({ hasVoted: voted }),
+        setVotedAnswerId: (answerId) => set({ votedAnswerId: answerId }),
         
-        return {
-          currentRound: updatedRound,
-          rounds: state.rounds.map(round =>
-            round.id === updatedRound.id ? updatedRound : round
+        addAnswer: (answer) => set((state) => {
+          if (!state.currentRound) return state
+          
+          const updatedRound = {
+            ...state.currentRound,
+            answers: [...state.currentRound.answers, answer]
+          }
+          
+          return {
+            currentRound: updatedRound,
+            rounds: state.rounds.map(round =>
+              round.id === updatedRound.id ? updatedRound : round
+            )
+          }
+        }),
+        
+        addVote: (vote) => set((state) => {
+          if (!state.currentRound) return state
+          
+          const updatedAnswers = state.currentRound.answers.map(answer =>
+            answer.id === vote.answerId
+              ? { ...answer, votes: [...answer.votes, vote] }
+              : answer
           )
-        }
+          
+          const updatedRound = {
+            ...state.currentRound,
+            answers: updatedAnswers,
+            votes: [...state.currentRound.votes, vote]
+          }
+          
+          return {
+            currentRound: updatedRound,
+            rounds: state.rounds.map(round =>
+              round.id === updatedRound.id ? updatedRound : round
+            )
+          }
+        }),
+        
+        setIsConnected: (connected) => set({ isConnected: connected }),
+        setPlayersOnline: (players) => set({ playersOnline: players }),
+        
+        resetUserState: () => set({
+          userAnswer: '',
+          hasSubmittedAnswer: false,
+          hasVoted: false,
+          votedAnswerId: null,
+        }),
+        
+        resetGameState: () => set(initialState),
       }),
-      
-      setIsConnected: (connected) => set({ isConnected: connected }),
-      setPlayersOnline: (players) => set({ playersOnline: players }),
-      
-      resetUserState: () => set({
-        userAnswer: '',
-        hasSubmittedAnswer: false,
-        hasVoted: false,
-        votedAnswerId: null,
-      }),
-      
-      resetGameState: () => set({
-        currentRound: null,
-        rounds: [],
-        scores: [],
-        gamePhase: { type: 'waiting' },
-        userAnswer: '',
-        hasSubmittedAnswer: false,
-        hasVoted: false,
-        votedAnswerId: null,
-        isConnected: false,
-        playersOnline: [],
-      }),
-    })),
-    {
-      name: 'game-store',
-    }
+      {
+        name: 'game-store',
+      }
+    )
   )
 )

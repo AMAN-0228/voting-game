@@ -1,587 +1,236 @@
-import { io, Socket } from 'socket.io-client'
-import { SOCKET_EVENTS } from '@/constants/api-routes'
-import { toast } from 'sonner'
+import { io } from 'socket.io-client'
+import type { Socket } from 'socket.io-client'
+import type { ClientToServerEvents, ServerToClientEvents } from '@/types/socket-events'
 
-// Dev-only: ensure we only trigger /api/socket once per session across HMR
-let __devSocketInitTriggered = false
-const devInit = {
-  get(): boolean {
-    if (typeof window === 'undefined') return __devSocketInitTriggered
-    return !!(window as any).__DEV_SOCKET_INIT__
-  },
-  set(): void {
-    if (typeof window === 'undefined') { __devSocketInitTriggered = true; return }
-    ;(window as any).__DEV_SOCKET_INIT__ = true
+export type SocketClient = Socket<ServerToClientEvents, ClientToServerEvents>
+
+// Global socket instance - only one connection for the entire app
+let globalSocket: SocketClient | null = null
+let connectionPromise: Promise<SocketClient> | null = null
+
+interface SocketConfig {
+  userId: string
+  username: string
+}
+
+/**
+ * Initialize the global socket connection
+ * This creates a single, persistent connection that survives page navigation
+ */
+export const initSocketClient = async (config: SocketConfig): Promise<SocketClient> => {
+  // If we already have a connection promise, wait for it
+  if (connectionPromise) {
+    return connectionPromise
+  }
+
+  // If we already have a connected socket, return it
+  if (globalSocket && globalSocket.connected) {
+    console.log('[SOCKET CLIENT] Using existing connection:', globalSocket.id)
+    return globalSocket
+  }
+
+  // Create new connection promise
+  connectionPromise = createSocketConnection(config)
+  
+  try {
+    const socket = await connectionPromise
+    globalSocket = socket
+    connectionPromise = null
+    return socket
+  } catch (error) {
+    connectionPromise = null
+    throw error
   }
 }
 
-class SocketClient {
-  private socket: Socket | null = null
-  private reconnectAttempts = 0
-  private maxReconnectAttempts = 5
+/**
+ * Create a new socket connection
+ */
+const createSocketConnection = async (config: SocketConfig): Promise<SocketClient> => {
+  const { userId, username } = config
   
-  private reconnectDelay(attempt: number) {
-    // Exponential backoff capped at 30 seconds
-    return Math.min(1000 * 2 ** attempt, 30000)
+  // Only initialize in browser environment
+  if (typeof window === 'undefined') {
+    throw new Error('Socket client can only be initialized in browser')
   }
 
-  // Generic ack shape
-  private ack<T = any>() {
-    return (resolve: (v: { ok: boolean; data?: T; error?: string }) => void) =>
-      (response: { ok: boolean; data?: T; error?: string }) => resolve(response)
-  }
+  // Check if we're in development mode
+  const isDevelopment = process.env.NODE_ENV === 'development'
+  
+  // Universal baseURL determination - works in both dev and prod
+  const baseURL = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
 
-  // Initialize socket connection
-  connect(userId: string, userEmail: string, userName?: string): Socket {
-    if (this.socket?.connected) {
-      console.log('Socket already connected')
-      return this.socket
-    }
-
-    console.log('Connecting to Socket.IO server...')
-
-    // Determine base URL and ensure server is initialized (dev only)
-    const baseUrl = (typeof window !== 'undefined' ? window.location.origin : undefined) 
-      || process.env.NEXT_PUBLIC_APP_URL 
-      || 'http://localhost:3000'
-
-    // In development, Next dev server needs a one-time init via /api/socket
-    if (process.env.NODE_ENV !== 'production' && !devInit.get()) {
-      try {
-        void fetch(`${baseUrl}/api/socket`)
-        console.log('[socket-client] Triggered /api/socket to initialize Socket.IO (dev)')
-        devInit.set()
-      } catch (e) {
-        console.warn('[socket-client] Failed to hit /api/socket (dev init)', e)
-      }
-    }
-
-    this.socket = io(baseUrl, {
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
-      timeout: 15000,
-      reconnectionAttempts: 5,
-      withCredentials: true,
-    })
-    
-    this.setupEventListeners(userId, userEmail, userName)
-    
-    return this.socket
-  }
-
-  private setupEventListeners(userId: string, userEmail: string, userName?: string) {
-    if (!this.socket) return
-
-    // Connection events
-    this.socket.on('connect', () => {
-      console.log('Connected to Socket.IO server')
+  return new Promise((resolve, reject) => {
+    try {
+      console.log('[SOCKET CLIENT] Creating new socket connection')
+      console.log('[SOCKET CLIENT] Environment:', isDevelopment ? 'development' : 'production')
+      console.log('[SOCKET CLIENT] Base URL:', baseURL)
+      console.log('[SOCKET CLIENT] Auth data:', { userId, username })
       
-      // Authenticate user
-      this.socket?.emit('authenticate', {
-        id: userId,
-        email: userEmail,
-        name: userName,
+      const socket = io(baseURL, {
+        // Standard Socket.IO path
+        path: '/socket.io',
+        transports: ['websocket', 'polling'],
+        auth: { userId, username },
+        withCredentials: true,
+        
+        // Improved reconnection configuration for development
+        reconnectionAttempts: isDevelopment ? 15 : 5,
+        reconnectionDelay: isDevelopment ? 300 : 1000,
+        reconnectionDelayMax: isDevelopment ? 1000 : 5000,
+        
+        // Connection settings
+        autoConnect: true,
+        forceNew: false,
+        upgrade: true,
+        rememberUpgrade: true,
+        
+        // Development-friendly settings
+        timeout: isDevelopment ? 30000 : 20000
       })
 
-      // Request fresh state from server
-      this.socket?.emit('sync_state', {}, (res: { ok: boolean; data?: any; error?: string }) => {
-        if (res?.ok && res.data) {
-          try {
-            // Import stores dynamically to avoid circular dependencies
-            const { useWebSocketStore } = require('@/store/websocket-store')
-            const { useRoomStore } = require('@/store/room-store')
-            const { useGameStore } = require('@/store/game-store')
-            
-            const wsStore = useWebSocketStore.getState()
-            const roomStore = useRoomStore.getState()
-            const gameStore = useGameStore.getState()
-            
-            wsStore.setIsConnected(true)
-            wsStore.setIsConnecting(false)
-            wsStore.setConnectionError(null)
-            
-            if (res.data.room) roomStore.updateCurrentRoom(res.data.room)
-            if (typeof res.data.isHost === 'boolean') roomStore.setIsHost(res.data.isHost)
-            if (res.data.gamePhase) gameStore.setGamePhase(res.data.gamePhase)
-            if (Array.isArray(res.data.scores)) gameStore.setScores(res.data.scores)
-            if (Array.isArray(res.data.players)) {
-              res.data.players.forEach((p: any) =>
-                roomStore.addPlayer({
-                  id: p.id,
-                  name: p.name,
-                  email: p.email,
-                  isOnline: true,
-                  joinedAt: new Date().toISOString(),
-                })
-              )
-            }
-          } catch (e) {
-            console.warn('[socket-client] failed to apply sync_state', e)
-          }
-        } else if (res?.error) {
-          console.warn('[socket-client] sync_state error:', res.error)
+      // Connection event handlers
+      socket.on('connect', () => {
+        console.log('[SOCKET CLIENT] Connected with ID:', socket.id)
+        console.log('[SOCKET CLIENT] Auth data:', { userId, username })
+        
+        // Resolve the promise once connected
+        resolve(socket)
+      })
+
+      socket.on('disconnect', (reason: string) => {
+        console.log('[SOCKET CLIENT] Disconnected:', reason)
+        
+        // Log specific disconnection reasons for debugging
+        if (reason === 'io server disconnect') {
+          console.log('[SOCKET CLIENT] Server initiated disconnect')
+        } else if (reason === 'io client disconnect') {
+          console.log('[SOCKET CLIENT] Client initiated disconnect')
+        } else if (reason === 'transport close') {
+          console.log('[SOCKET CLIENT] Transport closed')
+        } else if (reason === 'ping timeout') {
+          console.log('[SOCKET CLIENT] Ping timeout')
+        }
+        
+        // Development mode warning
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[SOCKET CLIENT] In development mode, disconnections may occur due to Fast Refresh')
+          console.warn('[SOCKET CLIENT] Socket will automatically reconnect')
         }
       })
-    })
 
-    // On successful reconnect, re-sync state
-    this.socket.on('reconnect', () => {
-      this.socket?.emit('sync_state', {}, (res: { ok: boolean; data?: any; error?: string }) => {
-        if (res?.ok && res.data) {
-          try {
-            const { useWebSocketStore } = require('@/store/websocket-store')
-            const { useRoomStore } = require('@/store/room-store')
-            const { useGameStore } = require('@/store/game-store')
-            
-            const wsStore = useWebSocketStore.getState()
-            const roomStore = useRoomStore.getState()
-            const gameStore = useGameStore.getState()
-            
-            wsStore.setIsConnected(true)
-            wsStore.setIsConnecting(false)
-            
-            if (res.data.room) roomStore.updateCurrentRoom(res.data.room)
-            if (typeof res.data.isHost === 'boolean') roomStore.setIsHost(res.data.isHost)
-            if (res.data.gamePhase) gameStore.setGamePhase(res.data.gamePhase)
-            if (Array.isArray(res.data.scores)) gameStore.setScores(res.data.scores)
-          } catch (e) {
-            console.warn('[socket-client] failed to apply sync_state after reconnect', e)
-          }
-        }
+      socket.on('connect_error', (error: Error) => {
+        console.error('[SOCKET CLIENT] Connection error:', error.message)
+        reject(error)
       })
-    })
 
-    this.socket.on('disconnect', (reason) => {
-      console.log('Disconnected from Socket.IO server:', reason)
-      
-      // Import stores dynamically to avoid circular dependencies
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const { useGameStore } = require('@/store/game-store')
-      
-      const wsStore = useWebSocketStore.getState()
-      const gameStore = useGameStore.getState()
-      
-      wsStore.setIsConnected(false)
-      gameStore.setIsConnected(false)
-      
-      if (reason === 'io server disconnect') {
-        // Server initiated disconnect - don't reconnect automatically
-        wsStore.setConnectionError('Server disconnected')
-        toast.error('Socket disconnected by server')
-      }
-    })
-
-    this.socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const wsStore = useWebSocketStore.getState()
-      
-      wsStore.setIsConnecting(false)
-      wsStore.setConnectionError(error.message)
-      
-      this.reconnectAttempts++
-      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        wsStore.setConnectionError('Failed to connect after multiple attempts')
-        toast.error(`Socket error: ${error.message}`)
-      } else {
-        const delay = this.reconnectDelay(this.reconnectAttempts)
-        setTimeout(() => {
-          this.reconnectAttempts++
-          this.socket?.connect()
-        }, delay)
-      }
-    })
-
-    // Authentication events
-    this.socket.on('authenticated', (data) => {
-      console.log('User authenticated:', data)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const wsStore = useWebSocketStore.getState()
-      wsStore.setLastEvent('authenticated', data)
-    })
-
-    // Room events
-    this.socket.on(SOCKET_EVENTS.ROOM_UPDATED, (data) => {
-      console.log('Room updated:', data)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const { useRoomStore } = require('@/store/room-store')
-      
-      const wsStore = useWebSocketStore.getState()
-      const roomStore = useRoomStore.getState()
-      
-      wsStore.setLastEvent(SOCKET_EVENTS.ROOM_UPDATED, data)
-      
-      if (data.room) {
-        roomStore.updateCurrentRoom(data.room)
-        roomStore.setIsHost(data.room.isHost)
-      }
-    })
-
-    this.socket.on(SOCKET_EVENTS.PLAYER_JOINED, (data) => {
-      console.log('Player joined:', data)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const { useRoomStore } = require('@/store/room-store')
-      const { useGameStore } = require('@/store/game-store')
-      
-      const wsStore = useWebSocketStore.getState()
-      const roomStore = useRoomStore.getState()
-      const gameStore = useGameStore.getState()
-      
-      wsStore.setLastEvent(SOCKET_EVENTS.PLAYER_JOINED, data)
-      
-      if (data.user) {
-        roomStore.addPlayer({
-          id: data.user.id,
-          name: data.user.name || undefined,
-          email: data.user.email || undefined,
-          isOnline: true,
-          joinedAt: new Date().toISOString(),
-        })
-      }
-      
-      // Update online players list
-      gameStore.setPlayersOnline(data.playersOnline)
-    })
-
-    this.socket.on(SOCKET_EVENTS.PLAYER_LEFT, (data) => {
-      console.log('Player left:', data)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const { useRoomStore } = require('@/store/room-store')
-      const { useGameStore } = require('@/store/game-store')
-      
-      const wsStore = useWebSocketStore.getState()
-      const roomStore = useRoomStore.getState()
-      const gameStore = useGameStore.getState()
-      
-      wsStore.setLastEvent(SOCKET_EVENTS.PLAYER_LEFT, data)
-      
-      if (data.userId) roomStore.updatePlayerStatus(data.userId, false)
-      
-      // Update online players list
-      gameStore.setPlayersOnline(data.playersOnline)
-    })
-
-    // Game events
-    this.socket.on(SOCKET_EVENTS.GAME_STARTED, (data) => {
-      console.log('Game started:', data)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const { useGameStore } = require('@/store/game-store')
-      const { useRoomStore } = require('@/store/room-store')
-      
-      const wsStore = useWebSocketStore.getState()
-      const gameStore = useGameStore.getState()
-      const roomStore = useRoomStore.getState()
-      
-      wsStore.setLastEvent(SOCKET_EVENTS.GAME_STARTED, data)
-      
-      gameStore.setGamePhase({ type: 'answering', timeLeft: 60, totalTime: 60 })
-      roomStore.updateRoomStatus('in_progress')
-    })
-
-    this.socket.on(SOCKET_EVENTS.GAME_ENDED, (data) => {
-      console.log('Game ended:', data)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const { useGameStore } = require('@/store/game-store')
-      const { useRoomStore } = require('@/store/room-store')
-      
-      const wsStore = useWebSocketStore.getState()
-      const gameStore = useGameStore.getState()
-      const roomStore = useRoomStore.getState()
-      
-      wsStore.setLastEvent(SOCKET_EVENTS.GAME_ENDED, data)
-      
-      gameStore.setGamePhase({ type: 'finished' })
-      roomStore.updateRoomStatus('done')
-    })
-
-    this.socket.on(SOCKET_EVENTS.ROUND_STARTED, (data) => {
-      console.log('Round started:', data)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const { useGameStore } = require('@/store/game-store')
-      
-      const wsStore = useWebSocketStore.getState()
-      const gameStore = useGameStore.getState()
-      
-      wsStore.setLastEvent(SOCKET_EVENTS.ROUND_STARTED, data)
-      
-      if (data.round) {
-        gameStore.setCurrentRound(data.round)
-        gameStore.addRound(data.round)
-      }
-      
-      gameStore.setGamePhase({ 
-        type: 'answering', 
-        timeLeft: data.timeLeft || 60,
-        totalTime: data.timeTotal || 60 
+      // Error handlers for different event categories
+      socket.on('room:error', ({ message }: { message: string }) => {
+        console.error('[SOCKET CLIENT] Room error:', message)
       })
-      gameStore.resetUserState()
-    })
 
-    this.socket.on(SOCKET_EVENTS.ROUND_ENDED, (data) => {
-      console.log('Round ended:', data)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const { useGameStore } = require('@/store/game-store')
-      
-      const wsStore = useWebSocketStore.getState()
-      const gameStore = useGameStore.getState()
-      
-      wsStore.setLastEvent(SOCKET_EVENTS.ROUND_ENDED, data)
-      
-      gameStore.setGamePhase({ type: 'voting', timeLeft: 30, totalTime: 30 })
-    })
-
-    // Answer events
-    this.socket.on(SOCKET_EVENTS.ANSWER_SUBMITTED, (data) => {
-      console.log('Answer submitted (anonymous):', data)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const wsStore = useWebSocketStore.getState()
-      
-      wsStore.setLastEvent(SOCKET_EVENTS.ANSWER_SUBMITTED, data)
-      
-      // Update UI to show that someone submitted an answer
-      // (answers are anonymous until voting phase)
-    })
-
-    this.socket.on('answer_confirmed', (data) => {
-      console.log('Your answer was confirmed:', data)
-      
-      const { useGameStore } = require('@/store/game-store')
-      const gameStore = useGameStore.getState()
-      gameStore.setHasSubmittedAnswer(true)
-    })
-
-    this.socket.on(SOCKET_EVENTS.ANSWERING_PHASE_ENDED, (data) => {
-      console.log('Answering phase ended:', data)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const { useGameStore } = require('@/store/game-store')
-      
-      const wsStore = useWebSocketStore.getState()
-      const gameStore = useGameStore.getState()
-      
-      wsStore.setLastEvent(SOCKET_EVENTS.ANSWERING_PHASE_ENDED, data)
-      
-      gameStore.setGamePhase({ type: 'voting', timeLeft: 30, totalTime: 30 })
-      
-      // Load answers for voting
-      if (data.answers) {
-        data.answers.forEach((answer: any) => {
-          gameStore.addAnswer(answer)
-        })
-      }
-    })
-
-    // Vote events
-    this.socket.on(SOCKET_EVENTS.VOTE_SUBMITTED, (data) => {
-      console.log('Vote submitted:', data)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const { useGameStore } = require('@/store/game-store')
-      
-      const wsStore = useWebSocketStore.getState()
-      const gameStore = useGameStore.getState()
-      
-      wsStore.setLastEvent(SOCKET_EVENTS.VOTE_SUBMITTED, data)
-      
-      if (data.vote) {
-        gameStore.addVote(data.vote)
-      }
-    })
-
-    this.socket.on(SOCKET_EVENTS.VOTING_PHASE_ENDED, (data) => {
-      console.log('Voting phase ended:', data)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const { useGameStore } = require('@/store/game-store')
-      
-      const wsStore = useWebSocketStore.getState()
-      const gameStore = useGameStore.getState()
-      
-      wsStore.setLastEvent(SOCKET_EVENTS.VOTING_PHASE_ENDED, data)
-      
-      gameStore.setGamePhase({ type: 'results' })
-    })
-
-    // Score events
-    this.socket.on(SOCKET_EVENTS.SCORES_UPDATED, (data) => {
-      console.log('Scores updated:', data)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const { useGameStore } = require('@/store/game-store')
-      
-      const wsStore = useWebSocketStore.getState()
-      const gameStore = useGameStore.getState()
-      
-      wsStore.setLastEvent(SOCKET_EVENTS.SCORES_UPDATED, data)
-      
-      if (data.scores) {
-        gameStore.setScores(data.scores)
-      }
-    })
-
-    // Timer events
-    this.socket.on(SOCKET_EVENTS.TIMER_UPDATED, (data) => {
-      let timeLeft = data.timeLeft
-      if (!timeLeft && data.deadline) {
-        const dl = typeof data.deadline === 'number' ? data.deadline : Date.parse(data.deadline)
-        timeLeft = Math.max(0, Math.ceil((dl - Date.now()) / 1000))
-      }
-      
-      const { useGameStore } = require('@/store/game-store')
-      const gameStore = useGameStore.getState()
-      
-      gameStore.setGamePhase({
-        ...gameStore.gamePhase,
-        timeLeft: typeof timeLeft === 'number' ? timeLeft : gameStore.gamePhase.timeLeft,
+      socket.on('game:error', ({ message }: { message: string }) => {
+        console.error('[SOCKET CLIENT] Game error:', message)
       })
-    })
 
-    this.socket.on(SOCKET_EVENTS.TIMER_ENDED, (data) => {
-      console.log('Timer ended:', data)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const { useGameStore } = require('@/store/game-store')
-      
-      const wsStore = useWebSocketStore.getState()
-      const gameStore = useGameStore.getState()
-      
-      wsStore.setLastEvent(SOCKET_EVENTS.TIMER_ENDED, data)
-      
-      // Handle phase transition based on current phase
-      const currentPhase = gameStore.gamePhase.type
-      if (currentPhase === 'answering') {
-        gameStore.setGamePhase({ type: 'voting', timeLeft: 30, totalTime: 30 })
-      } else if (currentPhase === 'voting') {
-        gameStore.setGamePhase({ type: 'results' })
-      }
-    })
+      // Handle connection timeout
+      const timeout = setTimeout(() => {
+        reject(new Error('Socket connection timeout'))
+      }, isDevelopment ? 30000 : 20000)
 
-    // Error events
-    this.socket.on(SOCKET_EVENTS.ERROR, (data) => {
-      console.error('Socket error:', data)
-      
-      const { useWebSocketStore } = require('@/store/websocket-store')
-      const wsStore = useWebSocketStore.getState()
-      
-      wsStore.setLastEvent(SOCKET_EVENTS.ERROR, data)
-      wsStore.setConnectionError(data.message)
-    })
-  }
+      socket.on('connect', () => {
+        clearTimeout(timeout)
+      })
 
-  // Disconnect socket
-  disconnect() {
-    if (this.socket) {
-      console.log('Disconnecting from Socket.IO server')
-      this.socket.disconnect()
-      this.socket = null
+    } catch (error) {
+      console.error('[SOCKET CLIENT] Failed to create socket:', error)
+      reject(error)
     }
-  }
-
-  // Get current socket instance
-  getSocket(): Socket | null {
-    return this.socket
-  }
-
-  // Check if connected
-  isConnected(): boolean {
-    return this.socket?.connected || false
-  }
-}
-
-// Export singleton instance
-export const socketClient = new SocketClient()
-
-// Export hook for easy use in components
-export const useSocket = () => {
-  return {
-    getSocket: socketClient.getSocket.bind(socketClient),
-    isConnected: socketClient.isConnected.bind(socketClient),
-  }
-}
-
-export async function leaveRoomWithAck(): Promise<{ ok: boolean; error?: string }> {
-  const socket = socketClient.getSocket()
-  if (!socket || !socket.connected) return { ok: false, error: 'Not connected' }
-  
-  const { useWebSocketStore } = require('@/store/websocket-store')
-  const wsStore = useWebSocketStore.getState()
-  
-  const prevRoomId = wsStore.currentRoomId
-  if (!prevRoomId) return { ok: false, error: 'Not in a room' }
-  
-  // optimistic
-  wsStore.setCurrentRoomId(null)
-  
-  return new Promise((resolve) => {
-    socket.emit('leave_room', { roomId: prevRoomId }, (res: { ok: boolean; error?: string }) => {
-      if (!res?.ok) {
-        // rollback
-        wsStore.setCurrentRoomId(prevRoomId)
-        resolve({ ok: false, error: res?.error || 'Leave failed' })
-        return
-      }
-      resolve({ ok: true })
-    })
   })
 }
 
-export async function submitAnswerWithAck(roundId: string, content: string): Promise<{ ok: boolean; error?: string }> {
-  const socket = socketClient.getSocket()
-  if (!socket || !socket.connected) return { ok: false, error: 'Not connected' }
-  
-  const { useGameStore } = require('@/store/game-store')
-  const gameStore = useGameStore.getState()
-  
-  // optimistic
-  const prevAnswer = (gameStore as any).userAnswer
-  gameStore.setUserAnswer(content)
-  
-  return new Promise((resolve) => {
-    socket.emit('answer_submitted', { roundId, content }, (res: { ok: boolean; error?: string }) => {
-      if (!res?.ok) {
-        // rollback
-        gameStore.setUserAnswer(prevAnswer)
-        resolve({ ok: false, error: res?.error || 'Answer failed' })
-        return
-      }
-      gameStore.setHasSubmittedAnswer(true)
-      resolve({ ok: true })
-    })
-  })
+/**
+ * Get the current socket client
+ * Returns null if no connection exists
+ */
+export const getSocketClient = (): SocketClient | null => {
+  return globalSocket
 }
 
-export async function submitVoteWithAck(roundId: string, answerId: string): Promise<{ ok: boolean; error?: string }> {
-  const socket = socketClient.getSocket()
-  if (!socket || !socket.connected) return { ok: false, error: 'Not connected' }
+/**
+ * Get or create socket client
+ * This is the main function components should use
+ */
+export const getOrCreateSocket = async (config: SocketConfig): Promise<SocketClient> => {
+  if (globalSocket && globalSocket.connected) {
+    return globalSocket
+  }
   
-  const { useGameStore } = require('@/store/game-store')
-  const gameStore = useGameStore.getState()
+  return initSocketClient(config)
+}
+
+/**
+ * Disconnect the global socket
+ * Only use this when the user logs out or the app is shutting down
+ */
+export const disconnectSocket = () => {
+  if (globalSocket) {
+    console.log('[SOCKET CLIENT] Disconnecting global socket')
+    globalSocket.disconnect()
+    globalSocket = null
+  }
+  if (connectionPromise) {
+    connectionPromise = null
+  }
+}
+
+/**
+ * Check if socket is connected
+ */
+export const isSocketConnected = (): boolean => {
+  return globalSocket?.connected || false
+}
+
+/**
+ * Reconnect socket if disconnected
+ */
+export const reconnectSocket = async (config: SocketConfig): Promise<SocketClient> => {
+  if (globalSocket && globalSocket.connected) {
+    return globalSocket
+  }
   
-  // optimistic
-  const prevVoted = (gameStore as any).votedAnswerId
-  gameStore.setVotedAnswerId(answerId)
-  gameStore.setHasVoted(true)
-  
-  return new Promise((resolve) => {
-    socket.emit('vote_submitted', { roundId, answerId }, (res: { ok: boolean; error?: string }) => {
-      if (!res?.ok) {
-        // rollback
-        gameStore.setVotedAnswerId(prevVoted || null)
-        gameStore.setHasVoted(false)
-        resolve({ ok: false, error: res?.error || 'Vote failed' })
-        return
-      }
-      resolve({ ok: true })
-    })
-  })
+  // Force disconnect and recreate
+  disconnectSocket()
+  return initSocketClient(config)
+}
+
+// Acknowledgment-based emit functions for critical actions
+export const submitAnswerWithAck = async (
+  roomId: string,
+  roundId: string,
+  answer: string
+): Promise<boolean> => {
+  if (!globalSocket) return false
+  try {
+    await globalSocket.timeout(5000).emit('game:answer:submit', { roomId, roundId, answer })
+    return true
+  } catch (error) {
+    console.error('Failed to submit answer:', error)
+    return false
+  }
+}
+
+export const submitVoteWithAck = async (
+  roomId: string,
+  roundId: string,
+  votedForUserId: string
+): Promise<boolean> => {
+  if (!globalSocket) return false
+  try {
+    await globalSocket.timeout(5000).emit('game:vote:submit', { roomId, roundId, votedForUserId })
+    return true
+  } catch (error) {
+    console.error('Failed to submit vote:', error)
+    return false
+  }
 }

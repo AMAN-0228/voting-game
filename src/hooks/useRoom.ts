@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRoomStore } from '@/store/room-store'
 import { roomHelpers } from '@/lib/api-helpers'
-import type { Room } from '@/lib/api-helpers'
+import { useRoomStore } from '@/store/room-store'
+import { usePersistentSocket } from '@/hooks/socket-hooks'
 
 interface UseRoomOptions {
   autoJoin?: boolean
@@ -27,10 +27,11 @@ export function useRoom(roomId: string, options: UseRoomOptions = {}): UseRoomRe
     setIsHost, 
     addPlayer, 
     setIsInRoom, 
-    updatePlayers,
     setLoading,
+    isInRoom,
     setError: setStoreError
   } = useRoomStore()
+  const { joinRoom } = usePersistentSocket()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isJoining, setIsJoining] = useState(false)
@@ -54,7 +55,8 @@ export function useRoom(roomId: string, options: UseRoomOptions = {}): UseRoomRe
         
         // Check if current user is already a player in this room
         const isUserInRoom = room.playerIds?.includes(session.user.id) || false
-        
+        console.log('_________ 12🔄 room', room)
+        console.log('_________ 12🔄 players', room.players)
         // Update room store with fetched data
         setCurrentRoom({
           ...room,
@@ -95,16 +97,26 @@ export function useRoom(roomId: string, options: UseRoomOptions = {}): UseRoomRe
       setIsLoading(false)
       setLoading(false)
     }
-  }, [roomId, session?.user?.id, onSuccess, onError, setLoading, setStoreError])
+  }, [roomId, session?.user?.id, onSuccess, onError, setLoading, setStoreError, setCurrentRoom, setIsHost, setIsInRoom, addPlayer])
 
   const joinRoomAction = useCallback(async () => {
+    console.log('🔄 joinRoomAction called:', { roomId, userId: session?.user?.id })
+    
     if (!session?.user?.id) {
-      setError('User not authenticated')
-      setStoreError('User not authenticated')
+      const errorMsg = 'User not authenticated'
+      console.log('❌ User not authenticated')
+      setError(errorMsg)
+      setStoreError(errorMsg)
+      onError?.(errorMsg)
       return
     }
 
     try {
+      if (isInRoom) {
+        console.log('🔄 User already in room, skipping join')
+        return
+      }
+      console.log('🚀 Starting room join process...')
       setIsJoining(true)
       setError(null)
       setStoreError(null)
@@ -117,6 +129,7 @@ export function useRoom(roomId: string, options: UseRoomOptions = {}): UseRoomRe
 
       if (result.data) {
         const room = result.data
+        console.log('✅ Room join successful:', room)
         
         // Update room store with joined room data
         setCurrentRoom({
@@ -145,18 +158,24 @@ export function useRoom(roomId: string, options: UseRoomOptions = {}): UseRoomRe
             joinedAt: new Date().toISOString()
           })
         }
+        
+        // Emit socket events after successful join
+        console.log('🔌 Emitting socket join event...')
+        joinRoom(roomId)
+        
+        // Call success callback
+        onSuccess?.()
       }
-
-      onSuccess?.()
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to join room'
+      console.log('❌ Room join failed:', errorMessage)
       setError(errorMessage)
       setStoreError(errorMessage)
       onError?.(errorMessage)
     } finally {
       setIsJoining(false)
     }
-  }, [roomId, session?.user?.id, session?.user?.name, session?.user?.email, onSuccess, onError, setStoreError])
+  }, [isInRoom, session?.user?.id, session?.user?.name, session?.user?.email, setIsInRoom, joinRoom])
 
   const refetch = useCallback(async () => {
     await fetchRoom()

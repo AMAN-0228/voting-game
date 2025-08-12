@@ -24,6 +24,16 @@ export const API_ROUTES = {
     GET_BY_ID: (id: string) => `/api/rounds/${id}`,
     START: (id: string) => `/api/rounds/${id}/start`,
     END: (id: string) => `/api/rounds/${id}/end`,
+    START_BY_ROOM: (roomId: string, roundId: string) => `/api/rooms/${roomId}/rounds/${roundId}/start`,
+  },
+
+  // Game management routes
+  GAME_MANAGEMENT: {
+    START: (roomId: string) => `/api/rooms/${roomId}/game/start`,
+    END: (roomId: string) => `/api/rooms/${roomId}/game/end`,
+    PAUSE: (roomId: string) => `/api/rooms/${roomId}/game/pause`,
+    RESUME: (roomId: string) => `/api/rooms/${roomId}/game/resume`,
+    STATUS: (roomId: string) => `/api/rooms/${roomId}/game/status`,
   },
 
   // Answer management routes
@@ -78,36 +88,23 @@ export const SOCKET_EVENTS = {
   DISCONNECT: 'disconnect',
   
   // Room events
-  JOIN_ROOM: 'join_room',
-  LEAVE_ROOM: 'leave_room',
-  ROOM_UPDATED: 'room_updated',
-  PLAYER_JOINED: 'player_joined',
-  PLAYER_LEFT: 'player_left',
+  'room:join': 'room:join',
+  'room:leave': 'room:leave',
+  'room:update': 'room:update',
+  'roomData': 'roomData',
+  'room:error': 'room:error',
   
   // Game events
-  GAME_STARTED: 'game_started',
-  GAME_ENDED: 'game_ended',
-  ROUND_STARTED: 'round_started',
-  ROUND_ENDED: 'round_ended',
-  
-  // Answer events
-  ANSWER_SUBMITTED: 'answer_submitted',
-  ANSWERING_PHASE_ENDED: 'answering_phase_ended',
-  
-  // Voting events
-  VOTE_SUBMITTED: 'vote_submitted',
-  VOTING_PHASE_ENDED: 'voting_phase_ended',
-  
-  // Score events
-  SCORES_UPDATED: 'scores_updated',
+  'game:start': 'game:start',
+  'game:round:start': 'game:round:start',
+  'game:round:end': 'game:round:end',
+  'game:answer:submit': 'game:answer:submit',
+  'game:vote:submit': 'game:vote:submit',
+  'game:error': 'game:error',
   
   // Timer events
-  TIMER_STARTED: 'timer_started',
-  TIMER_UPDATED: 'timer_updated',
-  TIMER_ENDED: 'timer_ended',
-  
-  // Error events
-  ERROR: 'error',
+  'timer:tick': 'timer:tick',
+  'timer:end': 'timer:end',
 } as const
 
 // HTTP Status codes for consistent error handling

@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
 import { z } from 'zod'
 
-export interface ActionResult<T = any> {
+export interface ActionResult<T = unknown> {
   success: boolean
   data?: T
   error?: string
@@ -44,8 +44,20 @@ export async function startRound(userId: string, input: z.infer<typeof startRoun
       console.warn('OpenAI generation failed, using fallback question')
     }
 
+    // Get the next sequence number for this room
+    const lastRound = await prisma.round.findFirst({
+      where: { roomId: parsed.data.roomId },
+      orderBy: { sno: 'desc' },
+      select: { sno: true }
+    })
+    const nextSno = (lastRound?.sno ?? 0) + 1
+
     const round = await prisma.round.create({
-      data: { roomId: parsed.data.roomId, question },
+      data: { 
+        roomId: parsed.data.roomId, 
+        question,
+        sno: nextSno
+      },
       select: { id: true, roomId: true, question: true, createdAt: true },
     })
 

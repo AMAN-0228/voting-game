@@ -1,4 +1,4 @@
-import { RoomLobby } from '@/components/RoomLobby'
+import { RoomLobby } from '@/components/rooms/RoomLobby'
 
 interface LobbyPageProps {
   params: Promise<{ roomId: string }>

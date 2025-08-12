@@ -4,12 +4,20 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { RoomCard, type RoomListItem } from '@/components/rooms/RoomCard'
 import { CreateRoomDialog } from '@/components/rooms/CreateRoomDialog'
-import { JoinRoomDialog } from '@/components/JoinRoomDialog'
+import { JoinRoomDialog } from '@/components/rooms/JoinRoomDialog'
 import { roomHelpers } from '@/lib/api-helpers'
 import { Plus, Gamepad2, Users, Crown } from 'lucide-react'
+
+interface RoomData {
+  id: string
+  code: string
+  status: 'starting' | 'in_progress' | 'done'
+  playerIds?: string[]
+  playersCount?: number
+}
 
 export default function Home() {
   const { status } = useSession()
@@ -30,11 +38,11 @@ export default function Home() {
       setError(null)
       const { data, error } = await roomHelpers.listUserRooms()
       if (error) setError(error)
-      setRooms(((data as any) || []).map((r: any) => ({
+      setRooms(((data as RoomData[]) || []).map((r: RoomData) => ({
         id: r.id,
         code: r.code,
         status: r.status,
-        playersCount: r.players?.length ?? r.playersCount ?? 0,
+        playersCount: r.playerIds?.length ?? r.playersCount ?? 0,
       })))
       setLoading(false)
     }
