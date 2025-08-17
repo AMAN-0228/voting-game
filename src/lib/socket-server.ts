@@ -1,146 +1,128 @@
-import type { Server as HTTPServer } from 'http'
-import { Server as IOServer } from 'socket.io'
-import { getToken } from 'next-auth/jwt'
+import { Server as HTTPServer } from 'http'
+import { Server as SocketIOServer } from 'socket.io'
+import { timerManager } from './timer-manager'
 import { registerRoomHandlers } from '@/handlers/socket/roomHandlers'
 import { registerGameHandlers } from '@/handlers/socket/gameHandlers'
-import { registerLobbyHandlers } from '@/handlers/socket/lobbyHandlers'
-import { roomsForSocket, removeOnline, getOnlineList, getUserInfo } from '@/lib/presence'
+import type { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData } from '@/types/socket-events'
 import { SOCKET_EVENTS } from '@/constants/api-routes'
 
-let ioSingleton: IOServer | null = null
+let io: SocketIOServer<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData> | null = null
 
-export function getIO(): IOServer | null {
-  return ioSingleton
-}
+// In-memory presence tracking per room
+const connectedUsers = new Map<string, Set<string>>() // roomId -> Set<userId>
 
-export function initSocketServer(httpServer: HTTPServer): IOServer {
-  // If server already has IO attached, reuse it
-  const existing = (httpServer as any).__io as IOServer | undefined
-  if (existing) {
-    ioSingleton = existing
-    return existing
+export function initSocketServer(server?: HTTPServer) {
+  console.log('_____ initSocketServer');
+  
+  if (io) return io
+
+  if (!server) {
+    throw new Error('HTTP server instance is required for Socket.IO initialization')
   }
-  if (ioSingleton) return ioSingleton
-  console.log('Socket server initialized');
-  
-  const isDev = process.env.NODE_ENV !== 'production'
-  const corsOrigin = isDev
-    ? 'http://localhost:3000'
-    : process.env.FRONTEND_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
-  const io = new IOServer(httpServer, {
+  // Universal configuration - same for dev and prod
+  const isProduction = process.env.NODE_ENV === 'production'
+  
+  // CORS origins - allow configured origins or default
+  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000']
+  
+  // Add NEXT_PUBLIC_APP_URL if set
+  if (process.env.NEXT_PUBLIC_APP_URL && !allowedOrigins.includes(process.env.NEXT_PUBLIC_APP_URL)) {
+    allowedOrigins.push(process.env.NEXT_PUBLIC_APP_URL)
+  }
+
+  io = new SocketIOServer(server, {
+    // Standard Socket.IO path - same for dev and prod
+    path: '/socket.io',
+    transports: ['websocket', 'polling'],
     cors: {
-      origin: corsOrigin,
+      origin: allowedOrigins,
       methods: ['GET', 'POST'],
-      credentials: true,
+      credentials: true
     },
+    
+    // Universal settings
+    connectionStateRecovery: {
+      maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
+      skipMiddlewares: true
+    },
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    maxHttpBufferSize: 1e6, // 1MB
+    allowEIO3: false,
+    serveClient: false
   })
+  // console.log('_____ io', io);
 
-  // NextAuth JWT handshake auth
+  // Authentication middleware using auth object
   io.use(async (socket, next) => {
-    try {
-      const cookie = socket.request.headers.cookie || ''
-      const secret = process.env.NEXTAUTH_SECRET
-      if (!secret) return next(new Error('Missing NEXTAUTH_SECRET'))
+    const { userId, username } = socket.handshake.auth
 
-      // decode NextAuth session token from cookies (robust for WS handshake)
-      const rawPairs = cookie
-        .split(';')
-        .map((c) => c.trim())
-        .filter(Boolean)
-      const cookies: Record<string, string> = Object.fromEntries(
-        rawPairs.map((c) => {
-          const idx = c.indexOf('=')
-          return [c.slice(0, idx), decodeURIComponent(c.slice(idx + 1))]
-        })
-      )
-      const baseName = process.env.NODE_ENV === 'production'
-        ? '__Secure-next-auth.session-token'
-        : 'next-auth.session-token'
-      // handle chunked cookies: `${baseName}.0`, `.1`, ... else fallback to base
-      const chunkKeys = Object.keys(cookies)
-        .filter((k) => k === baseName || k.startsWith(`${baseName}.`))
-        .sort((a, b) => {
-          const ai = a === baseName ? -1 : parseInt(a.split('.').pop() || '0', 10)
-          const bi = b === baseName ? -1 : parseInt(b.split('.').pop() || '0', 10)
-          return ai - bi
-        })
-      let sessionToken = ''
-      if (chunkKeys.length > 0) {
-        sessionToken = chunkKeys.map((k) => cookies[k]).join('')
-      }
-      let token = sessionToken
-        ? await (await import('next-auth/jwt')).decode({ token: sessionToken, secret })
-        : null
-      // Fallback to getToken which understands NextAuth internals
-      if (!token) {
-        const { getToken } = await import('next-auth/jwt')
-        token = await getToken({ req: { headers: { cookie } } as any, secret, secureCookie: process.env.NODE_ENV === 'production' })
-      }
-      const userIdFromToken = (token as any)?.id || (token as any)?.sub
-      if (!userIdFromToken) return next(new Error('Unauthorized'))
-
-      // attach basic user info for handlers
-      ;(socket as any).data = {
-        ...(socket as any).data,
-        userId: userIdFromToken,
-        email: (token as any)?.email ?? null,
-        name: (token as any)?.name ?? null,
-      }
-      // console.log('__________ Socket Data:', (socket as any).data);
-      return next()
-    } catch (e) {
-      return next(new Error('Auth error'))
+    if (!userId || !username) {
+      return next(new Error('Authentication required: userId and username must be provided'))
     }
+
+    // Store auth data in socket
+    socket.data.userId = userId
+    socket.data.username = username
+    next()
   })
-  
-  io.on('connection', (socket) => {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[socket] connect ${socket.id} user=${(socket as any).data?.userId}`)
-    }
-    // Register modular handlers
-    registerRoomHandlers(io, socket)
-    registerGameHandlers(io, socket)
-    registerLobbyHandlers(io, socket)
 
-    socket.on('disconnect', (reason: string) => {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[socket] disconnect ${socket.id} reason=${reason}`)
-      }
-      const userId = (socket as any).data?.userId as string | undefined
-      if (!userId) return
-      
-      const rooms = roomsForSocket(socket.id)
-      for (const roomId of rooms) {
-        removeOnline(roomId, userId)
-        
-        // Get user info before removing
-        const userInfo = getUserInfo(userId)
-        
-        // Broadcast player_offline event with updated online list
-        io.to(roomId).emit(SOCKET_EVENTS.PLAYER_LEFT, {
+  io.on('connection', (socket) => {
+    console.log(`[SOCKET SERVER] Socket connected: ${socket.id} (${socket.data.username})`)
+    console.log(`[SOCKET SERVER] Socket data:`, { userId: socket.data.userId, username: socket.data.username })
+
+    // Register modular event handlers
+    if (io) {
+      console.log('[SOCKET SERVER] Registering handlers for socket:', socket.id)
+      registerRoomHandlers(io, socket, connectedUsers)
+      registerGameHandlers(io, socket)
+    }
+
+    // Handle disconnection with presence cleanup
+    socket.on(SOCKET_EVENTS.DISCONNECT, () => {
+      const roomId = socket.data.roomId
+      const userId = socket.data.userId
+
+      if (roomId && userId) {
+        // Remove from presence tracking
+        const roomUsers = connectedUsers.get(roomId)
+        if (roomUsers) {
+          roomUsers.delete(userId)
+          if (roomUsers.size === 0) {
+            connectedUsers.delete(roomId)
+          }
+        }
+
+        // Notify room of user leaving
+        socket.to(roomId).emit(SOCKET_EVENTS.ROOM_LEAVE, {
           roomId,
-          userId,
-          user: userInfo,
-          playersOnline: getOnlineList(roomId)
+          userId
         })
+      }
+
+      if (!isProduction) {
+        console.log(`Socket disconnected: ${socket.id} (${socket.data.username})`)
       }
     })
   })
 
-  // Mark both module singleton and server reference
-  ;(httpServer as any).__io = io
-  ioSingleton = io
-  if (isDev) {
-    console.log('Socket.IO initialized in dev')
-  } else {
-    console.log('Socket.IO initialized in prod')
+  // Initialize timer manager with socket server
+  timerManager.setIO(io)
+
+  return io
+}
+
+/**
+ * Get the Socket.IO server instance
+ */
+export function getSocketServer() {
+  if (!io) {
+    throw new Error('Socket.IO server not initialized')
   }
   return io
 }
 
-// Helper to check if Socket.IO has already been initialized on this process
-export function isSocketServerInitialized(): boolean {
-  return !!ioSingleton
+export function getIO() {
+  return getSocketServer()
 }
-

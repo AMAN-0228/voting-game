@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
+import { subscribeWithSelector } from 'zustand/middleware'
 
 // Types for auth state
 export interface User {
@@ -46,7 +47,7 @@ export interface AuthState {
 export const useAuthStore = create<AuthState>()(
   devtools(
     persist(
-      (set, get) => ({
+      subscribeWithSelector((set) => ({
         // Initial state
         user: null,
         isAuthenticated: false,
@@ -105,7 +106,7 @@ export const useAuthStore = create<AuthState>()(
           authError: null,
           registrationError: null,
         }),
-      }),
+      })),
       {
         name: 'auth-store',
         // Only persist user data and authentication status

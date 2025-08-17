@@ -1,4 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Voting Gaming - Interactive Multiplayer Game
+
+A real-time multiplayer voting game built with Next.js, Socket.IO, and Prisma.
+
+## Features
+
+- **Real-time Multiplayer**: Live game sessions with Socket.IO
+- **Room Management**: Create and join game rooms with unique codes
+- **Voting System**: Interactive voting mechanics for game rounds
+- **Authentication**: Secure user authentication with NextAuth.js
+- **Responsive UI**: Modern, mobile-friendly interface with Tailwind CSS
+
+## Architecture
+
+The application follows a hybrid approach combining REST APIs with WebSocket events:
+
+- **API First**: All data operations go through REST endpoints
+- **Socket Events**: Real-time communication for game state updates
+- **Separation of Concerns**: Database operations and socket events are clearly separated
+
+### Room Joining Flow
+
+The room joining system has been refactored for better reliability:
+
+1. **API Call**: User joins room via REST API endpoint
+2. **Socket Event**: Client emits `room:join` after successful API response
+3. **Server Response**: Server emits `roomData` with fresh room state
+
+See [ROOM_JOIN_FLOW.md](docs/ROOM_JOIN_FLOW.md) for detailed implementation details.
 
 ## Getting Started
 
@@ -18,7 +46,26 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Development
+
+### Prerequisites
+- Node.js 18+
+- PostgreSQL database
+- Redis (for session storage)
+
+### Environment Variables
+Create a `.env.local` file with:
+```env
+DATABASE_URL="postgresql://..."
+NEXTAUTH_SECRET="your-secret"
+NEXTAUTH_URL="http://localhost:3000"
+```
+
+### Database Setup
+```bash
+npx prisma generate
+npx prisma db push
+```
 
 ## Learn More
 
