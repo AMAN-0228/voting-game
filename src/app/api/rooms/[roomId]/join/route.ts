@@ -3,9 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { HTTP_STATUS } from '@/constants/api-routes'
 import { joinRoom } from '@/actions/rooms'
-import { getIO } from '@/lib/socket-server'
 import { z } from 'zod'
-import { SOCKET_EVENTS } from '@/constants/api-routes'
 
 const ParamsSchema = z.object({
   roomId: z.string().min(1),
@@ -30,21 +28,9 @@ export async function POST(req: NextRequest, context: { params: Promise<{ roomId
   }
 
   const room = result.data
-  const user = room.players.find((p: any) => p.id === userId) || { id: userId, name: session?.user?.name ?? null, email: session?.user?.email ?? null }
 
-  // Emit socket event to room
-  const io = getIO()
-  if (io) {
-    // Get the current online players for this room
-    const { getOnlineList } = await import('@/lib/presence')
-    const playersOnline = getOnlineList(roomId)
-    
-    io.to(roomId).emit(SOCKET_EVENTS.PLAYER_JOINED, {
-      roomId,
-      user,
-      playersOnline
-    })
-  }
+  // Note: Socket events are now handled by the client after successful API response
+  // The client will emit 'room:join' which will trigger the server to emit 'roomData'
 
   return NextResponse.json({ room })
 }

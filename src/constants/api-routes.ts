@@ -13,6 +13,7 @@ export const API_ROUTES = {
   JOIN_BY_ID: (id: string) => `/api/rooms/${id}/join`,
   JOIN_BY_CODE: (code: string) => `/api/rooms/join/${code}`,
   SEND_INVITE: (roomId: string) => `/api/rooms/${roomId}/invite`,
+  GET_SUMMARY: (roomId: string) => `/api/rooms/${roomId}/summary`,
   
   // Socket.IO
   SOCKET_INIT: '/api/socket',
@@ -21,9 +22,20 @@ export const API_ROUTES = {
   ROUNDS_MANAGEMENT: {
     CREATE: '/api/rounds',
     GET_BY_ROOM: (roomId: string) => `/api/rounds/room/${roomId}`,
+    GET_SUMMARY: (roomId: string) => `/api/rounds/room/${roomId}/summary`,
     GET_BY_ID: (id: string) => `/api/rounds/${id}`,
     START: (id: string) => `/api/rounds/${id}/start`,
     END: (id: string) => `/api/rounds/${id}/end`,
+    START_BY_ROOM: (roomId: string, roundId: string) => `/api/rooms/${roomId}/rounds/${roundId}/start`,
+  },
+
+  // Game management routes
+  GAME_MANAGEMENT: {
+    START: (roomId: string) => `/api/rooms/${roomId}/game/start`,
+    END: (roomId: string) => `/api/rooms/${roomId}/game/end`,
+    PAUSE: (roomId: string) => `/api/rooms/${roomId}/game/pause`,
+    RESUME: (roomId: string) => `/api/rooms/${roomId}/game/resume`,
+    STATUS: (roomId: string) => `/api/rooms/${roomId}/game/status`,
   },
 
   // Answer management routes
@@ -76,38 +88,54 @@ export const SOCKET_EVENTS = {
   // Connection events
   CONNECT: 'connect',
   DISCONNECT: 'disconnect',
+  ERROR: 'error',
+  CONNECT_ERROR: 'connect_error',
   
   // Room events
-  JOIN_ROOM: 'join_room',
-  LEAVE_ROOM: 'leave_room',
-  ROOM_UPDATED: 'room_updated',
-  PLAYER_JOINED: 'player_joined',
-  PLAYER_LEFT: 'player_left',
+  ROOM_JOIN: 'room:join',
+  ROOM_LEAVE: 'room:leave',
+  ROOM_UPDATE: 'room:update',
+  ROOM_DATA: 'roomData',
+  ROOM_SYNC: 'room:sync',
+  ROOM_ERROR: 'room:error',
+  ROOM_STATUS_UPDATE: 'room:status:update',
   
   // Game events
-  GAME_STARTED: 'game_started',
-  GAME_ENDED: 'game_ended',
-  ROUND_STARTED: 'round_started',
-  ROUND_ENDED: 'round_ended',
+  GAME_START: 'game:start',
+  GAME_STARTED: 'game:started',
+  GAME_STATE_UPDATE: 'game:state:update',
+  GAME_STATE_REQUEST: 'game:state:request',
+  GAME_STATE_RESPONSE: 'game:state:response',
+  GAME_STATE_SYNCING: 'game:state:syncing',
+  GAME_STATE_SYNC: 'game:state:sync',
+  GAME_JOIN: 'game:join',
+  GAME_LEAVE: 'game:leave',
+  GAME_ROUND_START: 'game:round:start',
+  GAME_ROUND_END: 'game:round:end',
+  GAME_VOTING_START: 'game:voting:start',
+  GAME_ANSWER_SUBMIT: 'game:answer:submit',
+  GAME_ANSWER_SUBMITTED: 'game:answer:submitted',
+  GAME_ANSWERS_UPDATE: 'game:answers:update',
+  GAME_VOTE_SUBMIT: 'game:vote:submit',
+  GAME_VOTE_SUBMITTED: 'game:vote:submitted',
+  GAME_VOTES_UPDATE: 'game:votes:update',
+  GAME_PHASE_UPDATE: 'game:phase:update',
+  GAME_ERROR: 'game:error',
+  GAME_ENDED: 'game:ended',
   
-  // Answer events
-  ANSWER_SUBMITTED: 'answer_submitted',
-  ANSWERING_PHASE_ENDED: 'answering_phase_ended',
-  
-  // Voting events
-  VOTE_SUBMITTED: 'vote_submitted',
-  VOTING_PHASE_ENDED: 'voting_phase_ended',
-  
-  // Score events
-  SCORES_UPDATED: 'scores_updated',
+  // Legacy game events (for backward compatibility)
+  GAME_STARTED_LEGACY: 'game_started',
+  ROUND_STARTED_LEGACY: 'round_started',
+  ROUND_VOTING_STARTED_LEGACY: 'round_voting_started',
+  VOTE_UPDATE_LEGACY: 'vote_update',
+  ROUND_ENDED_LEGACY: 'round_ended',
+  GAME_OVER_LEGACY: 'game_over',
+  SCORES_UPDATED_LEGACY: 'scores_updated',
+  SYNC_GAME_STATE_LEGACY: 'sync_game_state',
   
   // Timer events
-  TIMER_STARTED: 'timer_started',
-  TIMER_UPDATED: 'timer_updated',
-  TIMER_ENDED: 'timer_ended',
-  
-  // Error events
-  ERROR: 'error',
+  TIMER_TICK: 'timer:tick',
+  TIMER_END: 'timer:end',
 } as const
 
 // HTTP Status codes for consistent error handling

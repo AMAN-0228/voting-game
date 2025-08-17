@@ -1,81 +1,131 @@
-// In-memory presence tracking (not persisted)
-// Tracks which users are online per room and which rooms a socket is in
+/**
+ * In-memory presence tracking with Redis-compatible interface
+ */
 
-interface OnlineUser {
-  id: string
-  name?: string | null
-  email?: string | null
+interface PresenceData {
+  userId: string
+  username: string
+  socketId: string
+  joinedAt: number
 }
 
-const onlineUsersByRoom = new Map<string, Set<string>>()
-const roomsBySocket = new Map<string, Set<string>>()
-const userInfoBySocket = new Map<string, OnlineUser>()
+class PresenceManager {
+  private rooms: Map<string, Map<string, PresenceData>>
 
-export function addOnline(roomId: string, userId: string, userInfo?: { name?: string | null; email?: string | null }) {
-  let set = onlineUsersByRoom.get(roomId)
-  if (!set) {
-    set = new Set<string>()
-    onlineUsersByRoom.set(roomId, set)
+  constructor() {
+    this.rooms = new Map()
   }
-  set.add(userId)
-  
-  // Store user info if provided
-  if (userInfo) {
-    userInfoBySocket.set(userId, {
-      id: userId,
-      name: userInfo.name,
-      email: userInfo.email
-    })
-  }
-}
 
-export function removeOnline(roomId: string, userId: string) {
-  const set = onlineUsersByRoom.get(roomId)
-  if (!set) return
-  set.delete(userId)
-  if (set.size === 0) onlineUsersByRoom.delete(roomId)
-  
-  // Check if user is still online in any other room
-  let stillOnline = false
-  for (const [_, roomSet] of onlineUsersByRoom) {
-    if (roomSet.has(userId)) {
-      stillOnline = true
-      break
+  /**
+   * Add user to room
+   */
+  async addToRoom(roomId: string, data: PresenceData): Promise<void> {
+    let room = this.rooms.get(roomId)
+    if (!room) {
+      room = new Map()
+      this.rooms.set(roomId, room)
+    }
+    room.set(data.userId, data)
+  }
+
+  /**
+   * Remove user from room
+   */
+  async removeFromRoom(roomId: string, userId: string): Promise<void> {
+    const room = this.rooms.get(roomId)
+    if (room) {
+      room.delete(userId)
+      if (room.size === 0) {
+        this.rooms.delete(roomId)
+      }
     }
   }
-  
-  // Remove user info if they're no longer online anywhere
-  if (!stillOnline) {
-    userInfoBySocket.delete(userId)
+
+  /**
+   * Get all users in room
+   */
+  async getRoomUsers(roomId: string): Promise<PresenceData[]> {
+    const room = this.rooms.get(roomId)
+    return room ? Array.from(room.values()) : []
+  }
+
+  /**
+   * Check if user is in room
+   */
+  async isUserInRoom(roomId: string, userId: string): Promise<boolean> {
+    const room = this.rooms.get(roomId)
+    return room ? room.has(userId) : false
+  }
+
+  /**
+   * Get user count in room
+   */
+  async getRoomUserCount(roomId: string): Promise<number> {
+    const room = this.rooms.get(roomId)
+    return room ? room.size : 0
+  }
+
+  /**
+   * Get user's presence data
+   */
+  async getUserPresence(roomId: string, userId: string): Promise<PresenceData | null> {
+    const room = this.rooms.get(roomId)
+    return room ? room.get(userId) || null : null
+  }
+
+  /**
+   * Clear room data
+   */
+  async clearRoom(roomId: string): Promise<void> {
+    this.rooms.delete(roomId)
+  }
+
+  /**
+   * Get list of online users for a room
+   */
+  getOnlineList(roomId: string): Array<{ userId: string; username: string }> {
+    const room = this.rooms.get(roomId)
+    if (!room) return []
+    
+    return Array.from(room.values()).map(user => ({
+      userId: user.userId,
+      username: user.username
+    }))
+  }
+
+  /**
+   * Clear all presence data
+   */
+  async clearAll(): Promise<void> {
+    this.rooms.clear()
   }
 }
 
-export function getOnlineList(roomId: string): string[] {
-  const set = onlineUsersByRoom.get(roomId)
-  return set ? Array.from(set) : []
-}
+// Export singleton instance
+export const presenceManager = new PresenceManager()
 
-export function getUserInfo(userId: string): OnlineUser | null {
-  return userInfoBySocket.get(userId) || null
-}
+// Redis implementation would look like:
+/*
+class RedisPresenceManager {
+  private redis: Redis
 
-export function trackJoin(socketId: string, roomId: string) {
-  let set = roomsBySocket.get(socketId)
-  if (!set) {
-    set = new Set<string>()
-    roomsBySocket.set(socketId, set)
+  constructor(redis: Redis) {
+    this.redis = redis
   }
-  set.add(roomId)
-}
 
-export function trackLeave(socketId: string, roomId: string) {
-  const set = roomsBySocket.get(socketId)
-  if (!set) return
-  set.delete(roomId)
-  if (set.size === 0) roomsBySocket.delete(socketId)
-}
+  async addToRoom(roomId: string, data: PresenceData): Promise<void> {
+    await this.redis.hset(`room:${roomId}:presence`, data.userId, JSON.stringify(data))
+  }
 
-export function roomsForSocket(socketId: string): string[] {
-  const set = roomsBySocket.get(socketId)
-  return set ? Array.from(set) : []
+  async removeFromRoom(roomId: string, userId: string): Promise<void> {
+    await this.redis.hdel(`room:${roomId}:presence`, userId)
+  }
+
+  async getRoomUsers(roomId: string): Promise<PresenceData[]> {
+    const data = await this.redis.hgetall(`room:${roomId}:presence`)
+    return Object.values(data).map(d => JSON.parse(d))
+  }
+
+  // ... other methods with Redis implementations
 }
+*/

@@ -231,6 +231,9 @@ export async function getRoom(roomId: string): Promise<ActionResult> {
         hostId: true,
         playerIds: true,
       },
+      // include: {
+      //   players: true,
+      // },
     })
     
     if (!room) {
