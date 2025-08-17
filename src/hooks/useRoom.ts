@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { roomHelpers } from '@/lib/api-helpers'
-import { useRoomStore } from '@/store/room-store'
+import { useRoomStore, RoundSummaryData } from '@/store/room-store'
 import { useSocket } from '@/hooks/socket-hooks/useSocket'
 
 interface UseRoomOptions {
@@ -17,6 +17,10 @@ interface UseRoomReturn {
   fetchRoom: () => Promise<void>
   joinRoomAction: () => Promise<void>
   refetch: () => Promise<void>
+  // Round summary functionality
+  fetchRoundSummary: () => Promise<void>
+  isRoundSummaryLoading: boolean
+  roundSummaryError: string | null
 }
 
 export function useRoom(roomId: string, options: UseRoomOptions = {}): UseRoomReturn {
@@ -29,7 +33,14 @@ export function useRoom(roomId: string, options: UseRoomOptions = {}): UseRoomRe
     setIsInRoom, 
     setLoading,
     isInRoom,
-    setError: setStoreError
+    setError: setStoreError,
+    // Round summary state
+    roundSummary,
+    isRoundSummaryLoading,
+    roundSummaryError,
+    setRoundSummary,
+    setRoundSummaryLoading,
+    setRoundSummaryError
   } = useRoomStore()
   const { joinRoom } = useSocket()
   const [isLoading, setIsLoading] = useState(false)
@@ -55,8 +66,6 @@ export function useRoom(roomId: string, options: UseRoomOptions = {}): UseRoomRe
         
         // Check if current user is already a player in this room
         const isUserInRoom = room.playerIds?.includes(session.user.id) || false
-        console.log('_________ 12🔄 room', room)
-        console.log('_________ 12🔄 players', room.players)
         // Update room store with fetched data
         setCurrentRoom({
           ...room,
@@ -106,7 +115,6 @@ export function useRoom(roomId: string, options: UseRoomOptions = {}): UseRoomRe
   }, [roomId, session?.user?.id, onSuccess, onError, setLoading, setStoreError, setCurrentRoom, setIsHost, setIsInRoom, addPlayer, joinRoom])
 
   const joinRoomAction = useCallback(async () => {
-    console.log('🔄 joinRoomAction called:', { roomId, userId: session?.user?.id })
     
     if (!session?.user?.id) {
       const errorMsg = 'User not authenticated'
@@ -135,7 +143,6 @@ export function useRoom(roomId: string, options: UseRoomOptions = {}): UseRoomRe
 
       if (result.data) {
         const room = result.data
-        console.log('✅ Room join successful:', room)
         
         // Update room store with joined room data
         setCurrentRoom({
@@ -187,6 +194,26 @@ export function useRoom(roomId: string, options: UseRoomOptions = {}): UseRoomRe
     await fetchRoom()
   }, [fetchRoom])
 
+  // Round summary fetching
+  const fetchRoundSummary = useCallback(async () => {
+    try {
+      setRoundSummaryLoading(true)
+      setRoundSummaryError(null)
+
+      const result = await roomHelpers.getSummary(roomId)
+      if (result.data?.success) {
+        setRoundSummary(result.data.rounds as RoundSummaryData[])
+      } else {
+        throw new Error(result.data?.error || 'Failed to fetch round summary')
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch round summary'
+      setRoundSummaryError(errorMessage)
+    } finally {
+      setRoundSummaryLoading(false)
+    }
+  }, [roomId, setRoundSummary, setRoundSummaryLoading, setRoundSummaryError])
+
   // Auto-join if requested
   useEffect(() => {
     if (autoJoin && session?.user?.id) {
@@ -200,6 +227,10 @@ export function useRoom(roomId: string, options: UseRoomOptions = {}): UseRoomRe
     isJoining,
     fetchRoom,
     joinRoomAction,
-    refetch
+    refetch,
+    // Round summary functionality
+    fetchRoundSummary,
+    isRoundSummaryLoading,
+    roundSummaryError
   }
 }

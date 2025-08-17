@@ -9,6 +9,7 @@ import { RoomNotFoundScreen } from '@/components/rooms/RoomNotFound'
 import { GameRoom } from '@/components/rooms/GameRoom'
 import GameInterface from '@/components/game/core/GameInterface'
 import GameStartButton from '@/components/game/core/GameStartButton'
+import { RoundSummary } from '@/components/game'
 import { useRoom } from '@/hooks/useRoom'
 import { useRoomStore } from '@/store/room-store'
 import { useRouter } from 'next/navigation'
@@ -119,14 +120,19 @@ export default function RoomPage() {
               )}
               {/* Game Finished */}
               {currentRoom.status === 'done' && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Game Finished!</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-center text-lg">Congratulations! The game has ended.</p>
-                  </CardContent>
-                </Card>
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Game Finished!</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-center text-lg">Congratulations! The game has ended.</p>
+                    </CardContent>
+                  </Card>
+                  
+                  {/* Round Summary */}
+                  <RoundSummary roomId={roomId} />
+                </div>
               )}        
             </div>
           </div>

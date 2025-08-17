@@ -140,6 +140,8 @@ export const roomService = {
       API_ROUTES.SEND_INVITE(roomId), 
       { userIds }
     ),
+  getSummary: (roomId: string) =>
+    httpClient.get(API_ROUTES.ROUNDS_MANAGEMENT.GET_SUMMARY(roomId)),
 }
 
 // Legacy alias for backward compatibility
@@ -151,6 +153,7 @@ export const roomHelpers = {
   joinRoomById: roomService.join,
   joinRoomByCode: roomService.joinByCode,
   sendInvite: roomService.sendInvite,
+  getSummary: roomService.getSummary,
 }
 
 // Round service - game round management

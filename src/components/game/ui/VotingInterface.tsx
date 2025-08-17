@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { useSessionContext } from '@/components/layout'
+import { AnswerListing } from './AnswerListing'
 
 interface VotingInterfaceProps {
   hasVoted: boolean
@@ -23,7 +24,7 @@ interface VotingInterfaceProps {
 export function VotingInterface({ hasVoted, answers, timeLimit, submitVote, votes }: VotingInterfaceProps) {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
   const [isVoting, setIsVoting] = useState(false)
-  const user = useSessionContext()
+  const { user } = useSessionContext()
   // Use game phase's timeLeft instead of local state
   const timeLeft =  timeLimit
   const handleVote = async () => {
@@ -61,7 +62,6 @@ export function VotingInterface({ hasVoted, answers, timeLimit, submitVote, vote
       </Card>
     )
   }
-  console.log('__________ votes in voting interface __________', votes);
   
   return (
     <Card>
@@ -70,37 +70,20 @@ export function VotingInterface({ hasVoted, answers, timeLimit, submitVote, vote
       </CardHeader>
       <CardContent className="space-y-4">
 
-        <div className="space-y-3">
-          {answers.filter(answer => answer.userId !== user?.user?.id).map((answer, index) => {
-            const voteCount = votes.get(answer.id)?.length || 0
-            const isSelected = selectedAnswer === answer.id
-            
-            return (
-              <div
-                key={answer.id}
-                className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                  isSelected 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-                onClick={() => handleSelectAnswer(answer.id)}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <p className="font-medium text-sm text-gray-600">
-                    Answer {index + 1}:
-                  </p>
-                  <Badge variant="outline">{voteCount} votes</Badge>
-                </div>
-                <p className="text-gray-800">{answer.content}</p>
-                {isSelected && (
-                  <div className="mt-2">
-                    <Badge variant="default">Selected</Badge>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+        <AnswerListing
+          answers={answers.map(answer => ({
+            id: answer.id,
+            content: answer.content,
+            userId: answer.userId,
+            userName: answer.userId, // We'll need to get actual user names
+            voteCount: votes.get(answer.id)?.length || 0,
+            voters: []
+          }))}
+          variant="voting"
+          selectedAnswer={selectedAnswer}
+          onAnswerSelect={handleSelectAnswer}
+          currentUserId={user?.id}
+        />
         {hasVoted ? (
           <div className="mt-2 flex justify-center items-center">
             <Badge variant="default" className='bg-green-500 text-white'>Voted</Badge>

@@ -1,6 +1,44 @@
 import { create } from 'zustand'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
 
+// Types for round summary
+export interface RoundSummaryData {
+  id: string
+  sno: number
+  question: string
+  status: string
+  createdAt: Date
+  answers: Array<{
+    id: string
+    content: string
+    userId: string
+    userName: string
+    voteCount: number
+    voters: Array<{
+      id: string
+      name: string
+    }>
+  }>
+  winningAnswer: {
+    id: string
+    content: string
+    userId: string
+    userName: string
+    voteCount: number
+    voters: Array<{
+      id: string
+      name: string
+    }>
+  } | null
+  winningAnswerIds: string[] | []
+  userVote: {
+    answerId: string
+    answerContent: string
+    votedForUser: string
+  } | null
+  totalVotes: number
+}
+
 // Types for room state
 export interface Room {
   id: string
@@ -50,6 +88,11 @@ export interface RoomState {
   isJoiningRoom: boolean
   joinError: string | null
   
+  // Round summary data
+  roundSummary: RoundSummaryData[] | null
+  isRoundSummaryLoading: boolean
+  roundSummaryError: string | null
+  
   // Actions
   setCurrentRoom: (room: Room | null, currentUserId: string | null) => void
   updateCurrentRoom: (updates: Partial<Room>) => void
@@ -75,6 +118,12 @@ export interface RoomState {
   // Room status management
   updateRoomStatus: (status: Room['status']) => void
   
+  // Round summary actions
+  fetchRoundSummary: (roomId: string) => Promise<void>
+  setRoundSummary: (summary: RoundSummaryData[] | null) => void
+  setRoundSummaryLoading: (loading: boolean) => void
+  setRoundSummaryError: (error: string | null) => void
+  
   // Reset functions
   leaveRoom: () => void
   resetRoomState: () => void
@@ -97,6 +146,11 @@ export const useRoomStore = create<RoomState>()(
       isCreatingRoom: false,
       isJoiningRoom: false,
       joinError: null,
+      
+      // Round summary initial state
+      roundSummary: null,
+      isRoundSummaryLoading: false,
+      roundSummaryError: null,
       
       // Actions
       setCurrentRoom: (room, currentUserId) => {
@@ -187,11 +241,37 @@ export const useRoomStore = create<RoomState>()(
         }))
       },
       
+      // Round summary actions
+      fetchRoundSummary: async (roomId: string) => {
+        set({ isRoundSummaryLoading: true, roundSummaryError: null })
+        try {
+          const result = await roundSummaryHelpers.getRoundSummary(roomId)
+          if (result.data?.success) {
+            set({ roundSummary: result.data.rounds as RoundSummaryData[], isRoundSummaryLoading: false })
+          } else {
+            throw new Error(result.data?.error || 'Failed to fetch round summary')
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to fetch round summary'
+          set({ 
+            roundSummaryError: errorMessage, 
+            isRoundSummaryLoading: false 
+          })
+        }
+      },
+      
+      setRoundSummary: (summary) => set({ roundSummary: summary }),
+      setRoundSummaryLoading: (loading) => set({ isRoundSummaryLoading: loading }),
+      setRoundSummaryError: (error) => set({ roundSummaryError: error }),
+      
       leaveRoom: () => set({
         currentRoom: null,
         isInRoom: false,
         isHost: false,
         joinError: null,
+        roundSummary: null,
+        isRoundSummaryLoading: false,
+        roundSummaryError: null,
       }),
       
       resetRoomState: () => set({
@@ -202,6 +282,9 @@ export const useRoomStore = create<RoomState>()(
         isCreatingRoom: false,
         isJoiningRoom: false,
         joinError: null,
+        roundSummary: null,
+        isRoundSummaryLoading: false,
+        roundSummaryError: null,
       }),
     })),
     {

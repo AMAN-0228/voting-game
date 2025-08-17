@@ -13,6 +13,7 @@ export const API_ROUTES = {
   JOIN_BY_ID: (id: string) => `/api/rooms/${id}/join`,
   JOIN_BY_CODE: (code: string) => `/api/rooms/join/${code}`,
   SEND_INVITE: (roomId: string) => `/api/rooms/${roomId}/invite`,
+  GET_SUMMARY: (roomId: string) => `/api/rooms/${roomId}/summary`,
   
   // Socket.IO
   SOCKET_INIT: '/api/socket',

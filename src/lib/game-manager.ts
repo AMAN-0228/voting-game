@@ -159,7 +159,7 @@ class GameManager {
         roundId: round.id,
         roundNumber: gameState.sno,
         question: round.question,
-        timeLeft: gameState.timeRemaining,
+        timeLeft: 30,
         timeTotal: 30,
         // answers: round.answers,
         // votes: round.votes,
@@ -212,7 +212,6 @@ class GameManager {
    * End answering phase and start voting
    */
   private async endAnsweringPhase(roomId: string): Promise<void> {
-    console.log('__________ endAnsweringPhase __________', roomId);
     const gameState = this.games.get(roomId)
     if (!gameState) return
 
@@ -228,11 +227,15 @@ class GameManager {
     gameState.status = 'voting'
     gameState.timeRemaining = 30
     gameState.votingEndTime = new Date(Date.now() + 30000)
+    await prisma.round.update({
+      where: { id: gameState.currentRoundId },
+      data: { status: 'voting' }
+    })
 
     // Emit voting start event
     emitGamePhaseUpdate(roomId, {
       type: 'voting',
-      timeLeft: gameState.timeRemaining,
+      timeLeft: 30,
       timeTotal: 30,
       totalRounds: gameState.totalRounds,
       roundSno: gameState.sno
@@ -280,6 +283,10 @@ class GameManager {
 
     // Save votes to database
     await this.saveVotes(roomId)
+    await prisma.round.update({
+      where: { id: gameState.currentRoundId },
+      data: { status: 'finished' }
+    })
 
     // Emit round end event
     emitGameEvent(roomId, 'GAME_ROUND_END', {
@@ -326,7 +333,6 @@ class GameManager {
    * Save votes to database
    */
   private async saveVotes(roomId: string): Promise<void> {
-    console.log('__________ saveVotes __________', roomId);
     const gameState = this.games.get(roomId)
     if (!gameState) return
 
@@ -334,32 +340,27 @@ class GameManager {
       const round = await prisma.round.findFirst({
         where: { 
           id: gameState.currentRoundId,
+        },
+        include: {
+          answers: true,
         }
       })
-
       if (!round) return
-
-      // Get answers for this round to map userId to answerId
-      const answers = await prisma.answer.findMany({
-        where: { roundId: round.id }
-      })
+      
 
       // Create a map of userId to answerId
-      const userIdToAnswerId = new Map<string, string>()
-      answers.forEach(answer => {
-        userIdToAnswerId.set(answer.userId, answer.id)
-      })
+      const allAnswersOfRound = round.answers.map(answer => answer.id)
 
       // Save all votes
       const votesToSave = Array.from(gameState.votes.entries())
-        .filter(([userId, votedAnswerId]) => userIdToAnswerId.has(votedAnswerId))
+        .filter(([userId, votedAnswerId]) => allAnswersOfRound.includes(votedAnswerId))
         .map(([userId, votedAnswerId]) => ({
           roundId: round.id,
           voterId: userId,
-          answerId: userIdToAnswerId.get(votedAnswerId)!,
+          answerId: votedAnswerId,
           createdAt: new Date()
         }))
-
+      
       if (votesToSave.length > 0) {
         await prisma.vote.createMany({
           data: votesToSave

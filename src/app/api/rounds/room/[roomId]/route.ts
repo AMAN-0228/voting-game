@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
+import { getRoundsByRoom } from '@/actions/rounds'
 
 export async function GET(
   req: NextRequest,
@@ -15,36 +15,18 @@ export async function GET(
 
     const { roomId } = await context.params
 
-    // Check if user is a member of the room
-    const room = await prisma.room.findUnique({
-      where: { id: roomId },
-      select: { playerIds: true }
-    })
+    // Use the action to get rounds
+    const result = await getRoundsByRoom(roomId, session.user.id)
 
-    if (!room) {
-      return NextResponse.json({ error: 'Room not found' }, { status: 404 })
+    if (!result.success) {
+      const status = result.code === 'NOT_FOUND' ? 404 : 
+                    result.code === 'FORBIDDEN' ? 403 : 500
+      return NextResponse.json({ error: result.error }, { status })
     }
-
-    if (!room.playerIds.includes(session.user.id)) {
-      return NextResponse.json({ error: 'Not a member of this room' }, { status: 403 })
-    }
-
-    // Get all rounds for this room
-    const rounds = await prisma.round.findMany({
-      where: { roomId },
-      select: {
-        id: true,
-        question: true,
-        sno: true,
-        status: true,
-        createdAt: true
-      },
-      orderBy: { sno: 'asc' }
-    })
 
     return NextResponse.json({
       success: true,
-      rounds
+      rounds: result.data
     })
 
   } catch (error) {

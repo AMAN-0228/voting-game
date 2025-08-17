@@ -10,7 +10,7 @@ import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { Users, Vote, MessageSquare, CheckCircle } from 'lucide-react'
 import { SOCKET_EVENTS } from '@/constants/api-routes'
-import { AnswerForm, AnswerSubmission, GamePhaseHeader, Timer, VotingInterface, VotingPanel } from '@/components/game'
+import { AnswerForm, AnswerSubmission, GamePhaseHeader, Timer, VotingInterface, VotingPanel, RoundSummary } from '@/components/game'
 
 interface GameInterfaceProps {
   roomId: string
@@ -31,6 +31,9 @@ export default function GameInterface({ roomId, players }: GameInterfaceProps) {
   const votedAnswerId = useGameStore(state => state.votedAnswerId)
   const votes = useGameStore(state => state.votes)
   const { submitAnswer, submitVote, sendForGameStateSync, isConnected } = useGameSocket({roomId})
+
+  // State for showing round summary
+  const [showRoundSummary, setShowRoundSummary] = useState(false)
 
 
   useEffect(() => {
@@ -141,6 +144,30 @@ export default function GameInterface({ roomId, players }: GameInterfaceProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Round Summary Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center space-x-2">
+              <CheckCircle className="w-5 h-5" />
+              <span>Round Summary</span>
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowRoundSummary(!showRoundSummary)}
+            >
+              {showRoundSummary ? 'Hide Summary' : 'Show Summary'}
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        {showRoundSummary && (
+          <CardContent>
+            <RoundSummary roomId={roomId} />
+          </CardContent>
+        )}
+      </Card>
     </div>
   )
 }
