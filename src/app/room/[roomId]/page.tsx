@@ -1,228 +1,146 @@
 'use client'
 
-import { useEffect, useCallback, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
-import { toast } from 'sonner'
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { AlertCircle, Home, Gamepad2 } from 'lucide-react'
-import { useRoom } from '@/hooks/useRoom'
-import { useRoomStore } from '@/store/room-store'
-import { useWebSocket } from '@/hooks/useWebSocket'
 import { RoomPageHeader } from '@/components/rooms/RoomPageHeader'
 import { RoomPageLoading } from '@/components/rooms/RoomPageLoading'
 import { RoomNotFoundScreen } from '@/components/rooms/RoomNotFound'
-import { RoomCodeSection } from '@/components/rooms/RoomCodeSection'
-import { HostInfoCard } from '@/components/rooms/HostInfoCard'
-import { GameSettingsCard } from '@/components/rooms/GameSettingCard'
-import { PlayersListCard } from '@/components/rooms/PlayerListCard'
-import { ActionButtons } from '@/components/rooms/ActionButtons'
+import { GameRoom } from '@/components/rooms/GameRoom'
+import GameInterface from '@/components/game/core/GameInterface'
+import GameStartButton from '@/components/game/core/GameStartButton'
+import { RoundSummary } from '@/components/game'
+import { useRoom } from '@/hooks/useRoom'
+import { useRoomStore } from '@/store/room-store'
+import { useRouter } from 'next/navigation'
+import { CardTitle, CardHeader, Card, CardContent, RoomLobby, RoomSidebar } from '@/components'
 
-interface RoomPageProps {
-  params: Promise<{ roomId: string }>
-}
-
-export default function RoomPage({ params }: RoomPageProps) {
-  const { data: session } = useSession()
+export default function RoomPage() {
+  const params = useParams()
+  const { data: session, status } = useSession()
   const router = useRouter()
-  const [roomId, setRoomId] = useState('')
+  const roomId = params?.roomId as string
+  
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  
+  const { currentRoom, isInRoom } = useRoomStore()
+  const { joinRoomAction, fetchRoom, isLoading: isJoining } = useRoom(roomId, {
+    onSuccess: () => setIsLoading(false),
+    onError: (error) => {
+      setError(error)
+      setIsLoading(false)
+    }
+  })
+
+  // Reset state when roomId changes
+  useEffect(() => {
+    setIsLoading(true)
+    setError(null)
+  }, [roomId])
 
   useEffect(() => {
-    params.then(p => setRoomId(p.roomId))
-  }, [params])
-
-  const { 
-    isLoading, 
-    error,
-    fetchRoom, 
-    joinRoomAction 
-  } = useRoom(roomId, { autoJoin: false })
-
-  const { 
-    currentRoom, 
-    isInRoom 
-  } = useRoomStore()
-
-  const { isConnected } = useWebSocket()
-
-  // Load room data on mount
-  useEffect(() => {
+    console.log('🔄 RoomPage useEffect triggered:', { 
+      status, 
+      userId: session?.user?.id, 
+      isInRoom, 
+      roomId 
+    })
     
-    if (roomId && session?.user?.id && session?.user?.email) {
-      void fetchRoom()
-    }
-  }, [roomId, session?.user?.id, session?.user?.email, fetchRoom])
-
-  // If already in room, redirect to lobby
-  useEffect(() => {
-    if (isInRoom && roomId && currentRoom && !isLoading) {
-      router.replace(`/room/${roomId}/lobby`)
-    }
-  }, [isInRoom, router, roomId, currentRoom, isLoading])
-
-  // Check if current user is already a player in this room
-  const isCurrentUserInRoom = useMemo(() => {
-    return isInRoom
-  }, [currentRoom, session?.user?.id])
-
-  const handleJoinRoom = useCallback(async () => {
-    if (!roomId || !session?.user?.id || !session?.user?.email) {
-      toast.error('User information is incomplete', {
-        duration: 4000,
-      })
+    // Wait for session to be ready
+    if (status === 'loading') {
+      console.log('⏳ Session still loading...')
       return
     }
-
-    try {
-      await joinRoomAction()
-      
-      // Show success message
-      toast.success('Successfully joined the room!', {
-        duration: 2000,
-      })
-      
-      // Navigate to lobby
-      router.push(`/room/${roomId}/lobby`)
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to join room'
-      toast.error(errorMessage, {
-        duration: 4000,
-      })
+    
+    // If not authenticated, redirect to login
+    if (status === 'unauthenticated') {
+      console.log('❌ User not authenticated, redirecting to login')
+      router.push('/login')
+      return
     }
-  }, [roomId, session?.user?.id, session?.user?.email, joinRoomAction, router])
-
-  const handleGoToLobby = useCallback(() => {
-    if (roomId) {
-      router.push(`/room/${roomId}/lobby`)
+    
+    // If session is ready, just fetch room data (don't auto-join)
+    if (status === 'authenticated' && session?.user?.id) {
+      console.log('✅ User authenticated, room data will be fetched via API route')
+      // Don't call joinRoomAction here - user is just viewing the room
+      // The room data will be fetched by the GameRoom component or API route
     }
-  }, [roomId, router])
+  }, [status, session?.user?.id, roomId])
 
-  const canJoin = !!currentRoom && !isInRoom && isConnected && !!session?.user?.email
+  // Fetch room data when component mounts
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user?.id && !currentRoom) {
+      console.log('🔄 Fetching room data from API...')
+      fetchRoom()
+    }
+  }, [status, session?.user?.id, currentRoom, roomId])
 
-  if (!session?.user?.id || !session?.user?.email) {
+  // Show loading while session is loading
+  if (status === 'loading' || !currentRoom) {
+    return <RoomPageLoading />
+  }
+
+  // Show error if room not found or access denied
+  if (error) {
+    return <RoomNotFoundScreen roomId={roomId} onGoHome={() => router.push('/')} />
+  }
+
+ 
+  console.log('_________ 13🔄 currentRoom', currentRoom)
+  // If we have room data, show the room content regardless of loading states
+  if (currentRoom) {
+    const isHost = currentRoom.hostId === session?.user?.id
+
+    console.log('🔄 RoomPage: Rendering with status:', currentRoom.status, 'isInRoom:', isInRoom, 'isHost:', isHost)
+
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md bg-white/95 backdrop-blur-sm border-0 shadow-2xl">
-          <CardContent className="pt-8 pb-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertCircle className="w-10 h-10 text-white" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-800 mb-2">Authentication Required</h2>
-              <p className="text-gray-600">Please log in with a valid account to join this room</p>
+      <div className="min-h-screen bg-gray-50">
+        <RoomPageHeader status={currentRoom.status} />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Left Column - Room Info & Players */}
+            <RoomSidebar code={currentRoom.code} players={currentRoom.players} hostId={currentRoom.hostId} />
+            {/* Right Column - Game Interface */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Join Room Button - Show when user is not in room */}
+
+
+              {/* Game Start Button - Only show when room is in starting status and user is host */}
+              {currentRoom.status === 'starting' && (
+                <RoomLobby roomId={roomId} joinRoomAction={joinRoomAction} isJoining={isJoining} />
+              )}
+
+              {/* Game Interface - Show when game is active */}
+              {currentRoom?.status === 'in_progress' && (
+                <GameInterface 
+                  roomId={roomId}
+                  players={currentRoom.players || []}
+                />
+              )}
+              {/* Game Finished */}
+              {currentRoom.status === 'done' && (
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Game Finished!</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-center text-lg">Congratulations! The game has ended.</p>
+                    </CardContent>
+                  </Card>
+                  
+                  {/* Round Summary */}
+                  <RoundSummary roomId={roomId} />
+                </div>
+              )}        
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     )
   }
-  
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Background Pattern */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.03)_1px,transparent_0)] bg-[length:60px_60px] opacity-40"></div>
-      
-      <main className="relative z-10 p-6">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
-              Game Room
-            </h1>
-            <p className="text-purple-200 text-lg">Join the ultimate voting experience</p>
-          </div>
 
-          {/* Main Card */}
-          <Card className="bg-white/95 backdrop-blur-sm border-0 shadow-2xl overflow-hidden">
-            <RoomPageHeader status={currentRoom?.status} />
-            
-            <CardContent className="p-8">
-              {isLoading && <RoomPageLoading />}
-
-              {error && <RoomNotFoundScreen roomId={roomId} onGoHome={() => router.push('/')} />}
-              
-              {!isLoading && !error && !currentRoom && roomId && (
-                <div className="py-12 text-center">
-                  <div className="w-20 h-20 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <AlertCircle className="w-10 h-10 text-white" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-800 mb-3">Room Not Found</h3>
-                  <p className="text-gray-600 mb-8 max-w-md mx-auto">
-                    The room you&apos;re looking for doesn&apos;t exist or you don&apos;t have permission to view it.
-                  </p>
-                  <Button onClick={() => router.push('/')} variant="outline" size="lg" className="border-purple-200 text-purple-700 hover:bg-purple-50">
-                    <Home className="w-4 h-4 mr-2" />
-                    Go Home
-                  </Button>
-                </div>
-              )}
-
-              {!isLoading && !error && currentRoom && roomId && (
-                <div className="space-y-8">
-                  {/* Room Code Section */}
-                  <RoomCodeSection code={currentRoom.code} />
-
-                  {/* Room Info Grid */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Left Column */}
-                    <div className="space-y-6">
-                      {/* Host Info */}
-                      <HostInfoCard 
-                        name={currentRoom.host?.name}
-                        email={currentRoom.host?.email}
-                      />
-
-                      {/* Game Settings */}
-                      <GameSettingsCard 
-                        numRounds={currentRoom.numRounds}
-                        roundTime={currentRoom.roundTime}
-                      />
-                    </div>
-
-                    {/* Right Column */}
-                    <div className="space-y-6">
-                      {/* Players List */}
-                      <PlayersListCard
-                        players={currentRoom.players}
-                        hostId={currentRoom.hostId}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="pt-6 border-t border-gray-200">
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                      {isCurrentUserInRoom ? (
-                        // User is already in room - show "Go to Lobby" button
-                        <Button 
-                          onClick={handleGoToLobby}
-                          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
-                          size="lg"
-                        >
-                          <Gamepad2 className="w-5 h-5 mr-2" />
-                          Go to Lobby
-                        </Button>
-                      ) : (
-                        // User is not in room - show "Join Room" button
-                        <ActionButtons 
-                          canJoin={canJoin}
-                          isJoining={false}
-                          handleJoinRoom={handleJoinRoom}
-                          isConnected={isConnected}
-                          isConnecting={false}
-                          isInRoom={isInRoom}
-                          onGoLobby={handleGoToLobby}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-    </div>
-  )
+  // Fallback loading state (should rarely reach here)
+  return <RoomPageLoading />
 }

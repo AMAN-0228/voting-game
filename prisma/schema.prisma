@@ -58,12 +58,21 @@ model Round {
   id        String   @id @default(cuid())
   question  String
   createdAt DateTime @default(now())
+  status    RoundStatus @default(pending)
+  sno       Int
 
   // Relations
   roomId    String
   room      Room     @relation(fields: [roomId], references: [id])
   answers   Answer[]
   votes     Vote[]
+}
+
+enum RoundStatus {
+  pending
+  active
+  voting
+  finished
 }
 
 // =======================
