@@ -1,6 +1,44 @@
 import { create } from 'zustand'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
 
+// Types for round summary
+export interface RoundSummaryData {
+  id: string
+  sno: number
+  question: string
+  status: string
+  createdAt: Date
+  answers: Array<{
+    id: string
+    content: string
+    userId: string
+    userName: string
+    voteCount: number
+    voters: Array<{
+      id: string
+      name: string
+    }>
+  }>
+  winningAnswer: {
+    id: string
+    content: string
+    userId: string
+    userName: string
+    voteCount: number
+    voters: Array<{
+      id: string
+      name: string
+    }>
+  } | null
+  winningAnswerIds: string[] | []
+  userVote: {
+    answerId: string
+    answerContent: string
+    votedForUser: string
+  } | null
+  totalVotes: number
+}
+
 // Types for room state
 export interface Room {
   id: string
@@ -37,7 +75,6 @@ export interface RoomState {
   // Current room data
   currentRoom: Room | null
   userRooms: Room[]
-  
   // Room management
   isHost: boolean
   isInRoom: boolean
@@ -50,6 +87,11 @@ export interface RoomState {
   isCreatingRoom: boolean
   isJoiningRoom: boolean
   joinError: string | null
+  
+  // Round summary data
+  roundSummary: RoundSummaryData[] | null
+  isRoundSummaryLoading: boolean
+  roundSummaryError: string | null
   
   // Actions
   setCurrentRoom: (room: Room | null, currentUserId: string | null) => void
@@ -76,6 +118,12 @@ export interface RoomState {
   // Room status management
   updateRoomStatus: (status: Room['status']) => void
   
+  // Round summary actions
+  fetchRoundSummary: (roomId: string) => Promise<void>
+  setRoundSummary: (summary: RoundSummaryData[] | null) => void
+  setRoundSummaryLoading: (loading: boolean) => void
+  setRoundSummaryError: (error: string | null) => void
+  
   // Reset functions
   leaveRoom: () => void
   resetRoomState: () => void
@@ -83,11 +131,12 @@ export interface RoomState {
 
 export const useRoomStore = create<RoomState>()(
   devtools(
-    subscribeWithSelector((set, get) => ({
+    subscribeWithSelector((set) => ({
       // Initial state
       currentRoom: null,
       userRooms: [],
-      
+      status: 'starting',
+      players: [],
       isHost: false,
       isInRoom: false,
       
@@ -98,10 +147,14 @@ export const useRoomStore = create<RoomState>()(
       isJoiningRoom: false,
       joinError: null,
       
+      // Round summary initial state
+      roundSummary: null,
+      isRoundSummaryLoading: false,
+      roundSummaryError: null,
+      
       // Actions
       setCurrentRoom: (room, currentUserId) => {
-        console.log('___________ setCurrentRoom', room);
-        
+        console.log('___________ setCurrentRoom', { room, currentUserId, isInRoom: !!room, isHost: room ? room.hostId === currentUserId : false });
         set({ 
           currentRoom: room,
           isInRoom: !!room,
@@ -121,8 +174,15 @@ export const useRoomStore = create<RoomState>()(
         userRooms: [...state.userRooms, room]
       })),
       
-      setIsHost: (isHost) => set({ isHost }),
-      setIsInRoom: (inRoom) => set({ isInRoom: inRoom }),
+      setIsHost: (isHost) => {
+        console.log('___________ setIsHost', isHost);
+        set({ isHost })
+      },
+      
+      setIsInRoom: (inRoom) => {
+        console.log('___________ setIsInRoom', inRoom);
+        set({ isInRoom: inRoom })
+      },
       
       setLoading: (loading) => set({ isLoading: loading }),
       setError: (error) => set({ error }),
@@ -130,7 +190,6 @@ export const useRoomStore = create<RoomState>()(
       setIsCreatingRoom: (creating) => set({ isCreatingRoom: creating }),
       setIsJoiningRoom: (joining) => set({ isJoiningRoom: joining }),
       setJoinError: (error) => set({ joinError: error }),
-      
       // Player management
       addPlayer: (player) => set((state) => {
         if (!state.currentRoom) return state
@@ -173,17 +232,46 @@ export const useRoomStore = create<RoomState>()(
           : null
       })),
       
-      updateRoomStatus: (status) => set((state) => ({
-        currentRoom: state.currentRoom
-          ? { ...state.currentRoom, status }
-          : null
-      })),
+      updateRoomStatus: (status) => {
+        console.log('🔄 Room store: updateRoomStatus called with status:', status)
+        set((state) => ({
+          currentRoom: state.currentRoom
+            ? { ...state.currentRoom, status }
+            : null
+        }))
+      },
+      
+      // Round summary actions
+      fetchRoundSummary: async (roomId: string) => {
+        set({ isRoundSummaryLoading: true, roundSummaryError: null })
+        try {
+          const result = await roundSummaryHelpers.getRoundSummary(roomId)
+          if (result.data?.success) {
+            set({ roundSummary: result.data.rounds as RoundSummaryData[], isRoundSummaryLoading: false })
+          } else {
+            throw new Error(result.data?.error || 'Failed to fetch round summary')
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to fetch round summary'
+          set({ 
+            roundSummaryError: errorMessage, 
+            isRoundSummaryLoading: false 
+          })
+        }
+      },
+      
+      setRoundSummary: (summary) => set({ roundSummary: summary }),
+      setRoundSummaryLoading: (loading) => set({ isRoundSummaryLoading: loading }),
+      setRoundSummaryError: (error) => set({ roundSummaryError: error }),
       
       leaveRoom: () => set({
         currentRoom: null,
         isInRoom: false,
         isHost: false,
         joinError: null,
+        roundSummary: null,
+        isRoundSummaryLoading: false,
+        roundSummaryError: null,
       }),
       
       resetRoomState: () => set({
@@ -194,6 +282,9 @@ export const useRoomStore = create<RoomState>()(
         isCreatingRoom: false,
         isJoiningRoom: false,
         joinError: null,
+        roundSummary: null,
+        isRoundSummaryLoading: false,
+        roundSummaryError: null,
       }),
     })),
     {

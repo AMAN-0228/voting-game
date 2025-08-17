@@ -11,6 +11,7 @@ const paramsSchema = z.object({
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ roomId: string }> }) {
   const session = await getServerSession(authOptions)
+  console.log('🔄 GET /api/rooms/[roomId] session:', session)
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, { status: HTTP_STATUS.UNAUTHORIZED })
   }

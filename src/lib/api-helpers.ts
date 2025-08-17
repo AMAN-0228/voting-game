@@ -140,6 +140,8 @@ export const roomService = {
       API_ROUTES.SEND_INVITE(roomId), 
       { userIds }
     ),
+  getSummary: (roomId: string) =>
+    httpClient.get(API_ROUTES.ROUNDS_MANAGEMENT.GET_SUMMARY(roomId)),
 }
 
 // Legacy alias for backward compatibility
@@ -151,6 +153,7 @@ export const roomHelpers = {
   joinRoomById: roomService.join,
   joinRoomByCode: roomService.joinByCode,
   sendInvite: roomService.sendInvite,
+  getSummary: roomService.getSummary,
 }
 
 // Round service - game round management
@@ -171,14 +174,6 @@ export const roundService = {
     httpClient.post(API_ROUTES.ROUNDS_MANAGEMENT.END(id)),
 }
 
-// Legacy alias for backward compatibility
-export const roundHelpers = {
-  createRound: roundService.create,
-  getRoundsByRoom: roundService.getByRoom,
-  getRoundById: roundService.getById,
-  startRound: roundService.start,
-  endRound: roundService.end,
-}
 
 // Answer service - answer management
 export const answerService = {
