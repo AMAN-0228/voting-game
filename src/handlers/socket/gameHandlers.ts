@@ -65,7 +65,7 @@ export function registerGameHandlers(io: Server, socket: Socket) {
   socket.on(SOCKET_EVENTS.GAME_ANSWER_SUBMIT, async ({ roomId, roundId, answer }) => {
     try {
       console.log('[GAME HANDLERS] game:answer:submit event received:', { roomId, roundId, answer })
-      console.log('__________ socket  __________', { roomId, roundId, answer});
+      // console.log('__________ socket  __________', { roomId, roundId, answer});
       const result = await gameManager.submitAnswer(roomId, socket.data.userId, answer)
       
       if (!result.success) {
@@ -118,7 +118,7 @@ export function registerGameHandlers(io: Server, socket: Socket) {
         userId,
         votedAnswerId
       }))
-      console.log('__________ votesArray __________', votesArray);
+      // console.log('__________ votesArray __________', votesArray);
       io.to(roomId).emit(SOCKET_EVENTS.GAME_VOTES_UPDATE, {
         votes: votesArray,
         // votedCount: votesArray.length
@@ -146,7 +146,7 @@ export function registerGameHandlers(io: Server, socket: Socket) {
           }
         }
       })
-      console.log('__________ room __________', room);
+      // console.log('__________ room __________', room);
       if (!room) {
         socket.emit(SOCKET_EVENTS.GAME_ERROR, { message: 'Room not found' })
         return
@@ -157,17 +157,17 @@ export function registerGameHandlers(io: Server, socket: Socket) {
       };
       const gameState = gameManager.getGameState(roomId)
       
-      console.log('__________ gameState.currentRoundId __________', gameState);
+      // console.log('__________ gameState.currentRoundId __________', gameState);
       if (!gameState) {
         socket.emit(SOCKET_EVENTS.GAME_ERROR, { message: 'No active game found' })
         return
       }
       const currentRound = room.rounds.find(round => round.id === gameState.currentRoundId) || null
-      console.log('__________ currentRound __________', currentRound);
+      // console.log('__________ currentRound __________', currentRound);
       // Get current answers and votes for live display
       const currentAnswers = await gameManager.getCurrentAnswers(roomId)
       const currentVotes = await gameManager.getCurrentVotes(roomId)
-      console.log('__________ currentVotes __________', currentVotes);
+      // console.log('__________ currentVotes __________', currentVotes);
       socket.emit(SOCKET_EVENTS.GAME_STATE_RESPONSE, {
         ...gameState,
         currentRound: currentRound,
@@ -302,7 +302,7 @@ export function emitGameStateUpdate(roomId: string, data: { status: string; curr
 export function emitGamePhaseUpdate(roomId: string, data: { type: string, timeLeft: number, timeTotal: number, totalRounds: number, roundSno: number }) {
   const io = getIO()
   if (io) {
-    console.log('__________ game phase update', data);
+    // console.log('__________ game phase update', data);
     
     io.to(roomId).emit(SOCKET_EVENTS.GAME_PHASE_UPDATE, data)
   }
@@ -310,7 +310,7 @@ export function emitGamePhaseUpdate(roomId: string, data: { type: string, timeLe
 
 export function emitRoundStart(roomId: string, data: { roomId: string; roundId: string; roundNumber: number; question: string; timeLeft: number; timeTotal: number }): { success: boolean; clientCount: number } {
   const io = getIO()
-  console.log('__________ emitRoundStart __________', data);
+  // console.log('__________ emitRoundStart __________', data);
   
   if (!io) {
     console.error('Socket.IO instance not available')

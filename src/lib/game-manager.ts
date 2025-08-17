@@ -78,7 +78,7 @@ class GameManager {
       // console.log('__________ rounds __________', rounds);
       // Initialize game state
       const currentRound = rounds.find(r => r.sno === 1 )
-      console.log('__________ currentRound __________', currentRound);
+      // console.log('__________ currentRound __________', currentRound);
       const gameState: GameState = {
         roomId,
         currentRoundId: currentRound?.id || '',
@@ -117,7 +117,7 @@ class GameManager {
    * Start a specific round
    */
   async startRound(roomId: string): Promise<void> {
-    console.log('__________ startRound __________', roomId);
+    // console.log('__________ startRound __________', roomId);
     const gameState = this.games.get(roomId)
     if (!gameState) return
 
@@ -187,7 +187,7 @@ class GameManager {
    * Start question timer (30 seconds)
    */
   private startQuestionTimer(roomId: string): void {
-    console.log('__________ startQuestionTimer __________', roomId);
+    // console.log('__________ startQuestionTimer __________', roomId);
     const gameState = this.games.get(roomId)
     if (!gameState) return
 
@@ -309,7 +309,7 @@ class GameManager {
    * Save answers to database
    */
   private async saveAnswers(roomId: string): Promise<void> {
-    console.log('__________ saveAnswers __________', roomId);
+    // console.log('__________ saveAnswers __________', roomId);
     const gameState = this.games.get(roomId)
     if (!gameState) return
 
@@ -463,7 +463,7 @@ class GameManager {
    */
   async submitVote(roomId: string, userId: string, answerId: string): Promise<{ success: boolean; error?: string }> {
     try {
-      console.log('__________ submitVote __________', roomId, userId, answerId);
+      // console.log('__________ submitVote __________', roomId, userId, answerId);
       const gameState = this.games.get(roomId)
       if (!gameState) {
         return { success: false, error: 'Game not found' }
@@ -492,7 +492,7 @@ class GameManager {
       //   }
       // })
       const existingVote = gameState.votes.get(userId)
-      console.log('__________ existingVote __________', existingVote);
+      // console.log('__________ existingVote __________', existingVote);
 
       if (existingVote) {
         return { success: false, error: 'User has already voted for this round' }
@@ -520,7 +520,7 @@ class GameManager {
 
       // Also save in memory for real-time updates
       gameState.votes.set(userId, answerId)
-      console.log('__________ gameState.votes __________', gameState.votes);
+      // console.log('__________ gameState.votes __________', gameState.votes);
 
       console.log(`[GAME MANAGER] Vote saved to database for user ${userId} voting for ${answerId} in room ${roomId}, round ${gameState.currentRound}`)
       return { success: true }
