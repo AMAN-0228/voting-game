@@ -3,7 +3,7 @@ import { API_ROUTES } from '@/constants/api-routes'
 import { AxiosResponse } from 'axios'
 
 // Generic response type for API calls
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   data?: T
   error?: string
   code?: string
@@ -47,11 +47,11 @@ export interface User {
 }
 
 // Generic API error handler
-export function handleApiError(error: any): never {
-  if (error.response?.data?.error) {
-    throw new Error(error.response.data.error)
+export function handleApiError(error: unknown): never {
+  if (error && typeof error === 'object' && 'response' in error && error.response && typeof error.response === 'object' && 'data' in error.response && error.response.data && typeof error.response.data === 'object' && 'error' in error.response.data) {
+    throw new Error(String(error.response.data.error))
   }
-  if (error.message) {
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
     throw new Error(error.message)
   }
   throw new Error('An unexpected error occurred')
@@ -59,7 +59,7 @@ export function handleApiError(error: any): never {
 
 // Core HTTP client - industrial standard approach
 export const httpClient = {
-  async get<T = any>(url: string): Promise<ApiResponse<T>> {
+  async get<T = unknown>(url: string): Promise<ApiResponse<T>> {
     try {
       const response: AxiosResponse<T> = await apiRequest.get(url)
       return { data: response.data }
@@ -68,7 +68,7 @@ export const httpClient = {
     }
   },
 
-  async post<T = any>(url: string, data?: any): Promise<ApiResponse<T>> {
+  async post<T = unknown>(url: string, data?: unknown): Promise<ApiResponse<T>> {
     try {
       const response: AxiosResponse<T> = await apiRequest.post(url, data)
       return { data: response.data }
@@ -77,7 +77,7 @@ export const httpClient = {
     }
   },
 
-  async put<T = any>(url: string, data?: any): Promise<ApiResponse<T>> {
+  async put<T = unknown>(url: string, data?: unknown): Promise<ApiResponse<T>> {
     try {
       const response: AxiosResponse<T> = await apiRequest.put(url, data)
       return { data: response.data }
@@ -86,7 +86,7 @@ export const httpClient = {
     }
   },
 
-  async patch<T = any>(url: string, data?: any): Promise<ApiResponse<T>> {
+  async patch<T = unknown>(url: string, data?: unknown): Promise<ApiResponse<T>> {
     try {
       const response: AxiosResponse<T> = await apiRequest.patch(url, data)
       return { data: response.data }
@@ -95,7 +95,7 @@ export const httpClient = {
     }
   },
 
-  async delete<T = any>(url: string): Promise<ApiResponse<T>> {
+  async delete<T = unknown>(url: string): Promise<ApiResponse<T>> {
     try {
       const response: AxiosResponse<T> = await apiRequest.delete(url)
       return { data: response.data }
@@ -108,57 +108,53 @@ export const httpClient = {
 // Authentication service - feature-based organization
 export const authService = {
   login: (credentials: { email: string; password: string }) =>
-    httpClient.post<any>(API_ROUTES.LOGIN, credentials),
+    httpClient.post<{ user: User; token: string }>(API_ROUTES.LOGIN, credentials),
 
   register: (userData: { email: string; password: string; name?: string }) =>
-    httpClient.post<any>(API_ROUTES.REGISTER, userData),
+    httpClient.post<{ user: User; token: string }>(API_ROUTES.REGISTER, userData),
 }
 
 // Legacy alias for backward compatibility
 export const authHelpers = authService
 
-// Room service - comprehensive room management
+// Room service - room management
 export const roomService = {
-  list: () => httpClient.get<Room[]>(API_ROUTES.ROOMS),
+  create: (roomData: { numRounds: number; roundTime: number }) =>
+    httpClient.post(API_ROUTES.ROOMS, roomData),
   
-  listUserRooms: () => httpClient.get<Room[]>(API_ROUTES.ROOMS),
+  list: () =>
+    httpClient.get(API_ROUTES.ROOMS),
   
-  create: (data: { numRounds: number; roundTime: number }) =>
-    httpClient.post<Room>(API_ROUTES.ROOMS, data),
+  listUserRooms: () =>
+    httpClient.get(API_ROUTES.ROOMS),
   
-  getById: (roomId: string) =>
-    httpClient.get<RoomApiResponse>(API_ROUTES.ROOM_BY_ID(roomId)),
+  getById: (id: string) =>
+    httpClient.get(API_ROUTES.ROOM_BY_ID(id)),
   
-  join: (roomId: string) =>
-    httpClient.post<Room>(API_ROUTES.JOIN_BY_ID(roomId)),
-  
-  joinByCode: (code: string) =>
-    httpClient.post<Room>(API_ROUTES.JOIN_BY_CODE(code)),
-  
-  sendInvite: (roomId: string, userIds: string[]) =>
-    httpClient.post<{ invites: any[]; message: string }>(
-      API_ROUTES.SEND_INVITE(roomId), 
-      { userIds }
-    ),
   getSummary: (roomId: string) =>
     httpClient.get(API_ROUTES.ROUNDS_MANAGEMENT.GET_SUMMARY(roomId)),
+  
+  join: (roomId: string) =>
+    httpClient.post(API_ROUTES.JOIN_BY_ID(roomId)),
+  
+  joinByCode: (code: string) =>
+    httpClient.post(API_ROUTES.JOIN_BY_CODE(code)),
 }
 
 // Legacy alias for backward compatibility
 export const roomHelpers = {
+  createRoom: roomService.create,
   listRooms: roomService.list,
   listUserRooms: roomService.listUserRooms,
-  createRoom: roomService.create,
   getRoomById: roomService.getById,
+  getSummary: roomService.getSummary,
   joinRoomById: roomService.join,
   joinRoomByCode: roomService.joinByCode,
-  sendInvite: roomService.sendInvite,
-  getSummary: roomService.getSummary,
 }
 
-// Round service - game round management
+// Round service - round management
 export const roundService = {
-  create: (roundData: { roomId: string; question: string }) =>
+  create: (roundData: { roomId: string; question: string; sno: number }) =>
     httpClient.post(API_ROUTES.ROUNDS_MANAGEMENT.CREATE, roundData),
   
   getByRoom: (roomId: string) =>
@@ -167,99 +163,44 @@ export const roundService = {
   getById: (id: string) =>
     httpClient.get(API_ROUTES.ROUNDS_MANAGEMENT.GET_BY_ID(id)),
   
-  start: (id: string) =>
-    httpClient.post(API_ROUTES.ROUNDS_MANAGEMENT.START(id)),
-  
   end: (id: string) =>
     httpClient.post(API_ROUTES.ROUNDS_MANAGEMENT.END(id)),
 }
-
 
 // Answer service - answer management
 export const answerService = {
   submit: (answerData: { roundId: string; content: string }) =>
     httpClient.post(API_ROUTES.ANSWERS_MANAGEMENT.SUBMIT, answerData),
-  
-  getByRound: (roundId: string) =>
-    httpClient.get(API_ROUTES.ANSWERS_MANAGEMENT.GET_BY_ROUND(roundId)),
-  
-  getByUser: (userId: string) =>
-    httpClient.get(API_ROUTES.ANSWERS_MANAGEMENT.GET_BY_USER(userId)),
-  
-  update: (id: string, data: any) =>
-    httpClient.put(API_ROUTES.ANSWERS_MANAGEMENT.UPDATE(id), data),
-  
-  delete: (id: string) =>
-    httpClient.delete(API_ROUTES.ANSWERS_MANAGEMENT.DELETE(id)),
 }
 
 // Legacy alias for backward compatibility
 export const answerHelpers = {
   submitAnswer: answerService.submit,
-  getAnswersByRound: answerService.getByRound,
-  getAnswersByUser: answerService.getByUser,
-  updateAnswer: answerService.update,
-  deleteAnswer: answerService.delete,
 }
 
 // Vote service - voting management
 export const voteService = {
   submit: (voteData: { roundId: string; answerId: string }) =>
     httpClient.post(API_ROUTES.VOTES_MANAGEMENT.SUBMIT, voteData),
-  
-  getByRound: (roundId: string) =>
-    httpClient.get(API_ROUTES.VOTES_MANAGEMENT.GET_BY_ROUND(roundId)),
-  
-  getByUser: (userId: string) =>
-    httpClient.get(API_ROUTES.VOTES_MANAGEMENT.GET_BY_USER(userId)),
-  
-  delete: (id: string) =>
-    httpClient.delete(API_ROUTES.VOTES_MANAGEMENT.DELETE(id)),
 }
 
 // Legacy alias for backward compatibility
 export const voteHelpers = {
   submitVote: voteService.submit,
-  getVotesByRound: voteService.getByRound,
-  getVotesByUser: voteService.getByUser,
-  deleteVote: voteService.delete,
-}
-
-// Score service - scoring and leaderboard management
-export const scoreService = {
-  getByRoom: (roomId: string) =>
-    httpClient.get(API_ROUTES.SCORES.GET_BY_ROOM(roomId)),
-  
-  getByUser: (userId: string) =>
-    httpClient.get(API_ROUTES.SCORES.GET_BY_USER(userId)),
-  
-  update: (data: any) =>
-    httpClient.post(API_ROUTES.SCORES.UPDATE, data),
-  
-  getLeaderboard: (roomId: string) =>
-    httpClient.get(API_ROUTES.SCORES.LEADERBOARD(roomId)),
-}
-
-// Legacy alias for backward compatibility
-export const scoreHelpers = {
-  getScoresByRoom: scoreService.getByRoom,
-  getScoresByUser: scoreService.getByUser,
-  updateScores: scoreService.update,
-  getLeaderboard: scoreService.getLeaderboard,
 }
 
 // AI service - AI-powered features
 export const aiService = {
   generateQuestion: (category?: string) =>
-    httpClient.post(API_ROUTES.AI?.GENERATE_QUESTION || '/api/ai/generate-question', { category }),
+    httpClient.post('/api/ai/generate-question', { category }),
 }
 
 // User service - user management
 export const userService = {
-  getProfile: () => httpClient.get(API_ROUTES.USERS?.PROFILE || '/api/users/profile'),
+  getProfile: () => httpClient.get('/api/users/profile'),
   
   updateProfile: (data: { name?: string; email?: string }) =>
-    httpClient.put(API_ROUTES.USERS.UPDATE_PROFILE, data),
+    httpClient.put('/api/users/profile', data),
   
   search: (query: string) =>
     httpClient.get(`/api/users/search?q=${encodeURIComponent(query)}`),

@@ -158,7 +158,7 @@ export async function getRoundSummary(roomId: string, userId: string): Promise<A
 
     return {
       success: true,
-      data: transformedRounds
+      data: transformedRounds as RoundSummaryData[]
     }
 
   } catch (error) {
