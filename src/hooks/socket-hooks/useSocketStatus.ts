@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useWebSocketStore } from '@/store/websocket-store'
+import { SOCKET_EVENTS } from '@/constants/api-routes'
 
 interface SocketStatus {
   isConnected: boolean
@@ -57,9 +58,9 @@ export function useSocketStatus() {
     }
 
     // Set up event listeners
-    socket.on('connect', handleConnect)
-    socket.on('disconnect', handleDisconnect)
-    socket.on('connect_error', handleConnectError)
+    socket.on(SOCKET_EVENTS.CONNECT, handleConnect)
+    socket.on(SOCKET_EVENTS.DISCONNECT, handleDisconnect)
+    socket.on(SOCKET_EVENTS.CONNECT_ERROR, handleConnectError)
 
     // Initial status
     setStatus(prev => ({
@@ -70,9 +71,9 @@ export function useSocketStatus() {
     }))
 
     return () => {
-      socket.off('connect', handleConnect)
-      socket.off('disconnect', handleDisconnect)
-      socket.off('connect_error', handleConnectError)
+      socket.off(SOCKET_EVENTS.CONNECT, handleConnect)
+      socket.off(SOCKET_EVENTS.DISCONNECT, handleDisconnect)
+      socket.off(SOCKET_EVENTS.CONNECT_ERROR, handleConnectError)
     }
   }, [socket, isConnecting, connectionError])
 

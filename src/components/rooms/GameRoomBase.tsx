@@ -141,9 +141,7 @@ export const GameRoomBase = ({
                     <Gamepad2 className="w-6 h-6" />
                   </div>
                   <div>
-                    <CardTitle className="text-3xl mb-2">
-                      Room: {currentRoom?.code}
-                    </CardTitle>
+                   
                     <div className="flex items-center gap-3">
                       <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
                         {currentRoom?.status?.replace('_', ' ').toUpperCase() || 'STARTING'}
@@ -177,21 +175,7 @@ export const GameRoomBase = ({
             </CardHeader>
           </Card>
 
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-            {/* Main Game Area */}
-            <div className="xl:col-span-3 space-y-6">
-              <GameInterface roomId={roomId} isHost={isHost} />
-            </div>
-
-            {/* Sidebar */}
-            <div className="space-y-6">
-              <PlayersList 
-                players={currentRoom?.players || []} 
-                onlinePlayers={playersOnline}
-                hostId={currentRoom?.hostId}
-              />
-            </div>
-          </div>
+          
         </div>
       </main>
     </div>

@@ -1,5 +1,5 @@
-import { io } from 'socket.io-client'
-import type { Socket } from 'socket.io-client'
+import { io, Socket } from 'socket.io-client'
+import { SOCKET_EVENTS } from '@/constants/api-routes'
 import type { ClientToServerEvents, ServerToClientEvents } from '@/types/socket-events'
 
 export type SocketClient = Socket<ServerToClientEvents, ClientToServerEvents>
@@ -90,7 +90,7 @@ const createSocketConnection = async (config: SocketConfig): Promise<SocketClien
       })
 
       // Connection event handlers
-      socket.on('connect', () => {
+      socket.on(SOCKET_EVENTS.CONNECT, () => {
         console.log('[SOCKET CLIENT] Connected with ID:', socket.id)
         console.log('[SOCKET CLIENT] Auth data:', { userId, username })
         
@@ -98,7 +98,7 @@ const createSocketConnection = async (config: SocketConfig): Promise<SocketClien
         resolve(socket)
       })
 
-      socket.on('disconnect', (reason: string) => {
+      socket.on(SOCKET_EVENTS.DISCONNECT, (reason: string) => {
         console.log('[SOCKET CLIENT] Disconnected:', reason)
         
         // Log specific disconnection reasons for debugging
@@ -119,17 +119,17 @@ const createSocketConnection = async (config: SocketConfig): Promise<SocketClien
         }
       })
 
-      socket.on('connect_error', (error: Error) => {
+      socket.on(SOCKET_EVENTS.CONNECT_ERROR, (error: Error) => {
         console.error('[SOCKET CLIENT] Connection error:', error.message)
         reject(error)
       })
 
       // Error handlers for different event categories
-      socket.on('room:error', ({ message }: { message: string }) => {
+      socket.on(SOCKET_EVENTS.ROOM_ERROR, ({ message }: { message: string }) => {
         console.error('[SOCKET CLIENT] Room error:', message)
       })
 
-      socket.on('game:error', ({ message }: { message: string }) => {
+      socket.on(SOCKET_EVENTS.GAME_ERROR, ({ message }: { message: string }) => {
         console.error('[SOCKET CLIENT] Game error:', message)
       })
 
@@ -138,7 +138,7 @@ const createSocketConnection = async (config: SocketConfig): Promise<SocketClien
         reject(new Error('Socket connection timeout'))
       }, isDevelopment ? 30000 : 20000)
 
-      socket.on('connect', () => {
+      socket.on(SOCKET_EVENTS.CONNECT, () => {
         clearTimeout(timeout)
       })
 

@@ -7,10 +7,16 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Gamepad2, LogOut, User } from 'lucide-react'
 import { useSessionContext } from './SessionProvider'
+import { useRoomStore } from '@/store/room-store'
+import { useGameStore } from '@/store/game-store'
 
 // Memoized NavBar component to prevent unnecessary re-renders
 const NavBar = React.memo(() => {
   const { session, status, isAuthenticated, user } = useSessionContext()
+  
+  // Get store reset functions
+  const { resetRoomState } = useRoomStore()
+  const { resetGameState } = useGameStore()
 
   // Memoize the sign out handler to prevent recreation on every render
   const handleSignOut = useMemo(() => {
@@ -18,6 +24,15 @@ const NavBar = React.memo(() => {
       signOut({ callbackUrl: '/login' })
     }
   }, [])
+
+  // Memoize the home navigation handler to clear stores
+  const handleHomeClick = useMemo(() => {
+    return () => {
+      console.log('🏠 Clearing stores on home navigation from NavBar')
+      resetRoomState()
+      resetGameState()
+    }
+  }, [resetRoomState, resetGameState])
 
   // Memoize user info to prevent unnecessary re-renders
   const userInfo = useMemo(() => {
@@ -35,6 +50,7 @@ const NavBar = React.memo(() => {
     <div className="hidden md:flex items-center space-x-8">
       <Link 
         href="/" 
+        // onClick={handleHomeClick}
         className="text-gray-700 hover:text-purple-600 transition-colors font-medium"
       >
         Home

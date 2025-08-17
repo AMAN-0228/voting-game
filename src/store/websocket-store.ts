@@ -1,9 +1,11 @@
 import { create } from 'zustand'
-import { devtools, subscribeWithSelector } from 'zustand/middleware'
+import { persist, devtools, subscribeWithSelector } from 'zustand/middleware'
 import { Socket } from 'socket.io-client'
 import { toast } from 'sonner'
 import { ClientToServerEvents, ServerToClientEvents } from '@/types/socket-events'
 import { getOrCreateSocket, disconnectSocket as disconnectGlobalSocket } from '@/lib/socket-client'
+import { SOCKET_EVENTS } from '@/constants/api-routes'
+import type { SocketClient } from '@/lib/socket-client'
 
 type SocketType = Socket<ServerToClientEvents, ClientToServerEvents>
 
@@ -114,7 +116,7 @@ export const useWebSocketStore = create<WebSocketState>()(
       joinRoom: (roomId) => {
         const { socket } = get()
         if (socket && socket.connected) {
-          socket.emit('room:join', { roomId })
+          socket.emit(SOCKET_EVENTS.ROOM_JOIN, { roomId })
           set({ currentRoomId: roomId })
           toast.success('Joined room')
         }
@@ -123,7 +125,7 @@ export const useWebSocketStore = create<WebSocketState>()(
       leaveRoom: () => {
         const { socket, currentRoomId } = get()
         if (socket && socket.connected && currentRoomId) {
-          socket.emit('room:leave', { roomId: currentRoomId })
+          socket.emit(SOCKET_EVENTS.ROOM_LEAVE, { roomId: currentRoomId })
           set({ currentRoomId: null })
           toast.info('Left room')
         }
@@ -133,7 +135,7 @@ export const useWebSocketStore = create<WebSocketState>()(
       submitAnswer: (roundId, content) => {
         const { socket, currentRoomId } = get()
         if (socket && socket.connected && currentRoomId) {
-          socket.emit('game:answer:submit', { 
+          socket.emit(SOCKET_EVENTS.GAME_ANSWER_SUBMIT, { 
             roomId: currentRoomId,
             roundId, 
             answer: content 
@@ -144,7 +146,7 @@ export const useWebSocketStore = create<WebSocketState>()(
       submitVote: (roundId, answerId) => {
         const { socket, currentRoomId } = get()
         if (socket && socket.connected && currentRoomId) {
-          socket.emit('game:vote:submit', { 
+          socket.emit(SOCKET_EVENTS.GAME_VOTE_SUBMIT, { 
             roomId: currentRoomId,
             roundId, 
             votedForUserId: answerId 
@@ -153,16 +155,17 @@ export const useWebSocketStore = create<WebSocketState>()(
       },
       
       startGame: () => {
-        const currentRoomId = get().currentRoomId
+        const { socket, currentRoomId } = get()
+        console.log('_________ 15🔄 startGame')
         if (currentRoomId && socket) {
-          socket.emit('game:start', { roomId: currentRoomId, numRounds: 3 })
+          socket.emit(SOCKET_EVENTS.GAME_START, { roomId: currentRoomId, numRounds: 3 })
         }
       },
       
       endGame: () => {
         const { socket, currentRoomId } = get()
         if (currentRoomId && socket) {
-          socket.emit('game:ended', { roomId: currentRoomId })
+          socket.emit(SOCKET_EVENTS.GAME_ENDED, { roomId: currentRoomId })
         }
       },
       

@@ -4,14 +4,11 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { usePersistentSocket } from '@/hooks/socket-hooks'
-import { useGameStore } from '@/store/game-store'
-import { useWebSocketStore } from '@/store/websocket-store'
 import { toast } from 'sonner'
+import { useSessionContext } from '@/components/layout'
 
 interface VotingInterfaceProps {
-  roomId: string
-  roundId: string
+  hasVoted: boolean
   answers: Array<{
     id: string
     content: string
@@ -19,33 +16,25 @@ interface VotingInterfaceProps {
     votes: Array<{ id: string; voterId: string }>
   }>
   timeLimit: number
+  submitVote: (votedAnswerId: string) => void
+  votes: Map<string, string[]>
 }
 
-export function VotingInterface({ roomId, roundId, answers, timeLimit }: VotingInterfaceProps) {
+export function VotingInterface({ hasVoted, answers, timeLimit, submitVote, votes }: VotingInterfaceProps) {
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null)
   const [isVoting, setIsVoting] = useState(false)
-  const { socket } = usePersistentSocket()
-  const { gamePhase, setVotedAnswerId } = useGameStore()
-  const { submitVote } = useWebSocketStore()
+  const user = useSessionContext()
   // Use game phase's timeLeft instead of local state
-  const timeLeft = gamePhase.timeLeft ?? timeLimit
-
+  const timeLeft =  timeLimit
   const handleVote = async () => {
     if (!selectedAnswer) {
       toast.error('Please select an answer to vote for')
       return
     }
 
-    if (!socket) {
-      toast.error('Not connected to server')
-      return
-    }
-
     setIsVoting(true)
     try {
-      submitVote(roundId, selectedAnswer)
-      setVotedAnswerId(selectedAnswer)
-      setSelectedAnswer(null)
+      submitVote(selectedAnswer)
       toast.success('Vote submitted successfully!')
     } catch (error) {
       console.error('Error submitting vote:', error)
@@ -53,6 +42,11 @@ export function VotingInterface({ roomId, roundId, answers, timeLimit }: VotingI
     } finally {
       setIsVoting(false)
     }
+  }
+
+  const handleSelectAnswer = (answerId: string) => {
+    if (hasVoted) return
+    setSelectedAnswer(answerId)
   }
 
   if (timeLeft <= 0) {
@@ -67,26 +61,18 @@ export function VotingInterface({ roomId, roundId, answers, timeLimit }: VotingI
       </Card>
     )
   }
-
+  console.log('__________ votes in voting interface __________', votes);
+  
   return (
     <Card>
       <CardHeader>
         <CardTitle>Vote for Your Favorite Answer</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div>
-          <p className="mb-2 font-medium">Time Remaining: {timeLeft}s</p>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
-              className="bg-green-600 h-2 rounded-full transition-all duration-1000"
-              style={{ width: `${(timeLeft / timeLimit) * 100}%` }}
-            />
-          </div>
-        </div>
 
         <div className="space-y-3">
-          {answers.map((answer) => {
-            const voteCount = answer.votes?.length || 0
+          {answers.filter(answer => answer.userId !== user?.user?.id).map((answer, index) => {
+            const voteCount = votes.get(answer.id)?.length || 0
             const isSelected = selectedAnswer === answer.id
             
             return (
@@ -97,11 +83,11 @@ export function VotingInterface({ roomId, roundId, answers, timeLimit }: VotingI
                     ? 'border-blue-500 bg-blue-50' 
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
-                onClick={() => setSelectedAnswer(answer.id)}
+                onClick={() => handleSelectAnswer(answer.id)}
               >
                 <div className="flex justify-between items-start mb-2">
                   <p className="font-medium text-sm text-gray-600">
-                    User {answer.userId}
+                    Answer {index + 1}:
                   </p>
                   <Badge variant="outline">{voteCount} votes</Badge>
                 </div>
@@ -115,14 +101,19 @@ export function VotingInterface({ roomId, roundId, answers, timeLimit }: VotingI
             )
           })}
         </div>
-
-        <Button
+        {hasVoted ? (
+          <div className="mt-2 flex justify-center items-center">
+            <Badge variant="default" className='bg-green-500 text-white'>Voted</Badge>
+          </div>
+          ) : (
+          <Button
           onClick={handleVote}
-          disabled={isVoting || !selectedAnswer}
+          disabled={hasVoted || isVoting || !selectedAnswer}
           className="w-full"
         >
           {isVoting ? 'Submitting Vote...' : 'Submit Vote'}
         </Button>
+        )}
       </CardContent>
     </Card>
   )

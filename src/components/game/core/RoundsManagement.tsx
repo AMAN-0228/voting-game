@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { RoundStartButton } from './RoundStartButton'
-import { usePersistentSocket } from '@/hooks/socket-hooks'
+import { useSocket } from '@/hooks/socket-hooks'
 import { useGameStore } from '@/store/game-store'
 import { API_ROUTES } from '@/constants/api-routes'
 import { toast } from 'sonner'
@@ -15,7 +15,7 @@ interface RoundsManagementProps {
 }
 
 export function RoundsManagement({ roomId, isHost }: RoundsManagementProps) {
-  const { socket } = usePersistentSocket()
+  const { socket } = useSocket()
   const { rounds, currentRound, updateRounds } = useGameStore()
   
   useEffect(() => {

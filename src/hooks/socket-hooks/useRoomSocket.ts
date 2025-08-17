@@ -1,11 +1,12 @@
 import { useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { useWebSocketStore } from '@/store/websocket-store'
 import { useRoomStore, type Player } from '@/store/room-store'
-import { usePersistentSocket } from './usePersistentSocket'
+import { useSocket } from './useSocket'
+import { SOCKET_EVENTS } from '@/constants/api-routes'
 
 interface UseRoomSocketProps {
   roomId: string
+  isActive: boolean // true = user is in room, false = just viewing
   onPlayerJoin?: (userId: string) => void
   onPlayerLeave?: (userId: string) => void
   onRoomUpdate?: (players: Player[]) => void
@@ -13,17 +14,13 @@ interface UseRoomSocketProps {
 
 export function useRoomSocket({
   roomId,
+  isActive,
   onPlayerJoin,
   onPlayerLeave,
   onRoomUpdate
 }: UseRoomSocketProps) {
-  const { socket, setLastEvent } = useWebSocketStore()
-  const { updateCurrentRoom, addPlayer, updatePlayerStatus, updatePlayers } = useRoomStore()
-
-  const leaveRoom = useCallback(() => {
-    if (!socket) return
-    socket.emit('room:leave', { roomId })
-  }, [socket, roomId])
+  const { socket, joinRoom, leaveRoom } = useSocket()
+  const { updateCurrentRoom, addPlayer, updatePlayerStatus, updatePlayers, updateRoomStatus } = useRoomStore()
 
   const handleRoomData = useCallback((data: { 
     roomId: string
@@ -32,7 +29,6 @@ export function useRoomSocket({
     hostId: string
   }) => {
     console.log('Room data received:', data)
-    setLastEvent('roomData', data)
     
     // Update room status
     updateCurrentRoom({ status: data.status as 'starting' | 'in_progress' | 'done' })
@@ -44,14 +40,8 @@ export function useRoomSocket({
       joinedAt: player.joinedAt || new Date().toISOString()
     })))
     
-    // Update host status for current user
-    if (data.hostId) {
-      // Note: We can't access socket.data.userId here, so we'll rely on the store
-      // The host status will be updated when the room is fetched
-    }
-    
     onRoomUpdate?.(data.players)
-  }, [setLastEvent, updateCurrentRoom, updatePlayers, onRoomUpdate])
+  }, [updateCurrentRoom, updatePlayers, onRoomUpdate])
 
   const handleRoomSync = useCallback((data: { 
     roomId: string
@@ -60,7 +50,6 @@ export function useRoomSocket({
     hostId: string
   }) => {
     console.log('Room sync received:', data)
-    setLastEvent('room:sync', data)
     
     // Update room status
     updateCurrentRoom({ status: data.status as 'starting' | 'in_progress' | 'done' })
@@ -72,14 +61,8 @@ export function useRoomSocket({
       joinedAt: player.joinedAt || new Date().toISOString()
     })))
     
-    // Update host status for current user
-    if (data.hostId) {
-      // Note: We can't access socket.data.userId here, so we'll rely on the store
-      // The host status will be updated when the room is fetched
-    }
-    
     onRoomUpdate?.(data.players)
-  }, [setLastEvent, updateCurrentRoom, updatePlayers, onRoomUpdate])
+  }, [updateCurrentRoom, updatePlayers, onRoomUpdate])
 
   const handlePlayerJoined = useCallback((data: { 
     roomId: string
@@ -87,7 +70,6 @@ export function useRoomSocket({
     userName: string
   }) => {
     console.log('Player joined:', data)
-    setLastEvent('room:join', data)
     
     if (data.userId) {
       // Add the new player to the room store
@@ -101,21 +83,25 @@ export function useRoomSocket({
       onPlayerJoin?.(data.userId)
       toast.success(`${data.userName} joined the room`)
     }
-  }, [setLastEvent, addPlayer, onPlayerJoin])
+  }, [addPlayer, onPlayerJoin])
 
   const handlePlayerLeft = useCallback((data: { 
     roomId: string
     userId: string
   }) => {
     console.log('Player left:', data)
-    setLastEvent('room:leave', data)
     
     if (data.userId) {
       updatePlayerStatus(data.userId, false)
       onPlayerLeave?.(data.userId)
       toast.info('A player left the room')
     }
-  }, [setLastEvent, updatePlayerStatus, onPlayerLeave])
+  }, [updatePlayerStatus, onPlayerLeave])
+
+  const handleRoomStatusUpdate = useCallback((data: { status: string }) => {
+    console.log('Room status updated:', data)
+    updateRoomStatus(data.status as 'starting' | 'in_progress' | 'done')
+  }, [updateRoomStatus])
 
   const handleRoomError = useCallback((data: { message: string }) => {
     toast.error(data.message)
@@ -124,37 +110,46 @@ export function useRoomSocket({
   useEffect(() => {
     if (!socket || !roomId) return
 
-    // Note: Client no longer emits room:join
-    // The API handles joining and emits socket events
+    console.log('🎯 [useRoomSocket] Setting up listeners for room:', roomId, 'isActive:', isActive)
+
+    // If user is active in room, join the socket room
+    if (isActive) {
+      console.log('🎯 [useRoomSocket] User is active, joining socket room:', roomId)
+      joinRoom(roomId)
+    }
 
     // Attach listeners
-    socket.on('roomData', handleRoomData)
-    socket.on('room:sync', handleRoomSync)
-    socket.on('room:join', handlePlayerJoined)
-    socket.on('room:leave', handlePlayerLeft)
-    socket.on('room:error', handleRoomError)
+    socket.on(SOCKET_EVENTS.ROOM_DATA, handleRoomData)
+    socket.on(SOCKET_EVENTS.ROOM_SYNC, handleRoomSync)
+    socket.on(SOCKET_EVENTS.ROOM_JOIN, handlePlayerJoined)
+    socket.on(SOCKET_EVENTS.ROOM_LEAVE, handlePlayerLeft)
+    socket.on(SOCKET_EVENTS.ROOM_ERROR, handleRoomError)
+    socket.on(SOCKET_EVENTS.ROOM_STATUS_UPDATE, handleRoomStatusUpdate)
 
     // Cleanup
     return () => {
-      // Note: Client no longer joins rooms via socket
-      // Only leave room if needed
-      socket.off('roomData', handleRoomData)
-      socket.off('room:sync', handleRoomSync)
-      socket.off('room:join', handlePlayerJoined)
-      socket.off('room:leave', handlePlayerLeft)
-      socket.off('room:error', handleRoomError)
+      console.log('🎯 [useRoomSocket] Cleaning up listeners for room:', roomId)
+      socket.off(SOCKET_EVENTS.ROOM_DATA, handleRoomData)
+      socket.off(SOCKET_EVENTS.ROOM_SYNC, handleRoomSync)
+      socket.off(SOCKET_EVENTS.ROOM_JOIN, handlePlayerJoined)
+      socket.off(SOCKET_EVENTS.ROOM_LEAVE, handlePlayerLeft)
+      socket.off(SOCKET_EVENTS.ROOM_ERROR, handleRoomError)
+      socket.off(SOCKET_EVENTS.ROOM_STATUS_UPDATE, handleRoomStatusUpdate)
     }
   }, [
     socket,
     roomId,
+    isActive,
+    joinRoom,
     handleRoomData,
     handleRoomSync,
     handlePlayerJoined,
     handlePlayerLeft,
-    handleRoomError
+    handleRoomError,
+    handleRoomStatusUpdate
   ])
 
   return {
-    leaveRoom
+    leaveRoom: () => leaveRoom(roomId)
   }
 }

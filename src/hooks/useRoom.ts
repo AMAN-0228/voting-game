@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { roomHelpers } from '@/lib/api-helpers'
 import { useRoomStore } from '@/store/room-store'
-import { usePersistentSocket } from '@/hooks/socket-hooks'
+import { useSocket } from '@/hooks/socket-hooks/useSocket'
 
 interface UseRoomOptions {
   autoJoin?: boolean
@@ -31,7 +31,7 @@ export function useRoom(roomId: string, options: UseRoomOptions = {}): UseRoomRe
     isInRoom,
     setError: setStoreError
   } = useRoomStore()
-  const { joinRoom } = usePersistentSocket()
+  const { joinRoom } = useSocket()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isJoining, setIsJoining] = useState(false)
@@ -75,6 +75,12 @@ export function useRoom(roomId: string, options: UseRoomOptions = {}): UseRoomRe
         // Set user as in room if they're already a player
         setIsInRoom(isUserInRoom)
         
+        // If user is already in room, automatically join socket room
+        if (isUserInRoom && session.user.id) {
+          console.log('🔌 User already in room, automatically joining socket room...')
+          joinRoom(roomId)
+        }
+        
         // If user is not in room, add them to the players list for display
         if (!isUserInRoom && room.playerIds) {
           room.playerIds.forEach((playerId: string) => {
@@ -97,7 +103,7 @@ export function useRoom(roomId: string, options: UseRoomOptions = {}): UseRoomRe
       setIsLoading(false)
       setLoading(false)
     }
-  }, [roomId, session?.user?.id, onSuccess, onError, setLoading, setStoreError, setCurrentRoom, setIsHost, setIsInRoom, addPlayer])
+  }, [roomId, session?.user?.id, onSuccess, onError, setLoading, setStoreError, setCurrentRoom, setIsHost, setIsInRoom, addPlayer, joinRoom])
 
   const joinRoomAction = useCallback(async () => {
     console.log('🔄 joinRoomAction called:', { roomId, userId: session?.user?.id })

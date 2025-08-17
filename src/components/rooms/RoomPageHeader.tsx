@@ -9,7 +9,7 @@ interface RoomPageHeaderProps {
 
 export function RoomPageHeader({ status }: RoomPageHeaderProps) {
   return (
-    <CardHeader className="bg-gradient-to-r from-purple-600 to-blue-600 text-white pb-6">
+    <CardHeader className="bg-gradient-to-r from-purple-600 to-blue-600 text-white py-6">
       <CardTitle className="flex items-center justify-between text-2xl">
         <span className="flex items-center gap-3">
           <Gamepad2 className="w-8 h-8" />

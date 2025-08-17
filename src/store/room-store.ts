@@ -37,7 +37,6 @@ export interface RoomState {
   // Current room data
   currentRoom: Room | null
   userRooms: Room[]
-  
   // Room management
   isHost: boolean
   isInRoom: boolean
@@ -87,7 +86,8 @@ export const useRoomStore = create<RoomState>()(
       // Initial state
       currentRoom: null,
       userRooms: [],
-      
+      status: 'starting',
+      players: [],
       isHost: false,
       isInRoom: false,
       
@@ -101,7 +101,6 @@ export const useRoomStore = create<RoomState>()(
       // Actions
       setCurrentRoom: (room, currentUserId) => {
         console.log('___________ setCurrentRoom', { room, currentUserId, isInRoom: !!room, isHost: room ? room.hostId === currentUserId : false });
-        
         set({ 
           currentRoom: room,
           isInRoom: !!room,
@@ -137,7 +136,6 @@ export const useRoomStore = create<RoomState>()(
       setIsCreatingRoom: (creating) => set({ isCreatingRoom: creating }),
       setIsJoiningRoom: (joining) => set({ isJoiningRoom: joining }),
       setJoinError: (error) => set({ joinError: error }),
-      
       // Player management
       addPlayer: (player) => set((state) => {
         if (!state.currentRoom) return state
@@ -180,11 +178,14 @@ export const useRoomStore = create<RoomState>()(
           : null
       })),
       
-      updateRoomStatus: (status) => set((state) => ({
-        currentRoom: state.currentRoom
-          ? { ...state.currentRoom, status }
-          : null
-      })),
+      updateRoomStatus: (status) => {
+        console.log('🔄 Room store: updateRoomStatus called with status:', status)
+        set((state) => ({
+          currentRoom: state.currentRoom
+            ? { ...state.currentRoom, status }
+            : null
+        }))
+      },
       
       leaveRoom: () => set({
         currentRoom: null,

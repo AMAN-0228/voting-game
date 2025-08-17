@@ -4,6 +4,7 @@ import { timerManager } from './timer-manager'
 import { registerRoomHandlers } from '@/handlers/socket/roomHandlers'
 import { registerGameHandlers } from '@/handlers/socket/gameHandlers'
 import type { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData } from '@/types/socket-events'
+import { SOCKET_EVENTS } from '@/constants/api-routes'
 
 let io: SocketIOServer<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData> | null = null
 
@@ -79,7 +80,7 @@ export function initSocketServer(server?: HTTPServer) {
     }
 
     // Handle disconnection with presence cleanup
-    socket.on('disconnect', () => {
+    socket.on(SOCKET_EVENTS.DISCONNECT, () => {
       const roomId = socket.data.roomId
       const userId = socket.data.userId
 
@@ -94,7 +95,7 @@ export function initSocketServer(server?: HTTPServer) {
         }
 
         // Notify room of user leaving
-        socket.to(roomId).emit('room:leave', {
+        socket.to(roomId).emit(SOCKET_EVENTS.ROOM_LEAVE, {
           roomId,
           userId
         })

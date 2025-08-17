@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { roomHelpers } from '@/lib/api-helpers'
 import { useRoomStore } from '@/store/room-store'
-import { usePersistentSocket } from '@/hooks/socket-hooks'
+import { useSocket } from '@/hooks/socket-hooks'
 import { Button } from '@/components/ui/button'
 import { Users, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 
@@ -19,7 +19,7 @@ export default function JoinRoomButton({ roomId, onSuccess }: Props) {
   const [success, setSuccess] = useState(false)
   const router = useRouter()
   const { setIsInRoom } = useRoomStore()
-  const { joinRoom, isConnected } = usePersistentSocket()
+  const { joinRoom, isConnected } = useSocket()
 
   const onClick = async () => {
     setLoading(true)

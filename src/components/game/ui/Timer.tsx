@@ -3,6 +3,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Clock, AlertTriangle, Zap } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 interface TimerProps {
   timeLeft: number
@@ -11,6 +12,7 @@ interface TimerProps {
 }
 
 export const Timer = ({ timeLeft, totalTime, label = 'Time Remaining' }: TimerProps) => {
+  const [timeLeftState, setTimeLeftState] = useState(timeLeft)
   const pct = Math.max(0, Math.min(100, (timeLeft / totalTime) * 100))
   const isLow = timeLeft <= Math.max(5, Math.floor(totalTime * 0.15))
   const isCritical = timeLeft <= 10
@@ -41,6 +43,14 @@ export const Timer = ({ timeLeft, totalTime, label = 'Time Remaining' }: TimerPr
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
+  useEffect(() => {
+    // to have a countdown timer
+    if (timeLeftState <= 0) return
+    const interval = setInterval(() => {
+      setTimeLeftState(prev => prev - 1)
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [timeLeftState])
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -59,7 +69,7 @@ export const Timer = ({ timeLeft, totalTime, label = 'Time Remaining' }: TimerPr
               : 'bg-blue-100 text-blue-700 border-blue-200'
           } text-sm px-3 py-1 font-mono`}
         >
-          {formatTime(timeLeft)}
+          {formatTime(timeLeftState)}
         </Badge>
       </div>
 
@@ -132,7 +142,7 @@ export const Timer = ({ timeLeft, totalTime, label = 'Time Remaining' }: TimerPr
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
             <span className={`text-xs font-bold ${getTimeColor()}`}>
-              {formatTime(timeLeft)}
+              {formatTime(timeLeftState)}
             </span>
           </div>
         </div>

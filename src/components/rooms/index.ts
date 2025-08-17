@@ -5,6 +5,7 @@ export { default as JoinRoomButton } from './JoinRoomButton';
 export { RoomEntry } from './RoomEntry';
 export { GameRoom } from './GameRoom';
 export { GameRoomBase } from './GameRoomBase';
+export { RoomSidebar } from './RoomSidebar';
 
 // Re-export existing room components
 export * from './ActionButtons';

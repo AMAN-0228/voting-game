@@ -3,7 +3,6 @@
 import { ReactNode, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useWebSocketStore } from '@/store/websocket-store'
-import { useAllSocketListeners } from '@/hooks/socket-hooks'
 
 interface SocketProviderProps {
   children: ReactNode
@@ -22,8 +21,8 @@ export function SocketProvider({ children }: SocketProviderProps) {
 
   console.log('[SocketProvider] Socket state:', { socket: !!socket, isConnected })
 
-  // Initialize all socket event listeners (no room joining from client)
-  useAllSocketListeners(socket)
+  // Note: Room-specific socket listeners are now handled in room components
+  // via useRoomSocketListeners hook when user is actually in a room
 
   // Handle authentication state changes
   useEffect(() => {

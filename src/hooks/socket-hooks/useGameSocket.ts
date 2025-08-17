@@ -1,26 +1,24 @@
 import { useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
+import { useSocket } from './useSocket'
 import { SOCKET_EVENTS } from '@/constants/api-routes'
-import { useWebSocketStore } from '@/store/websocket-store'
-import { useGameStore } from '@/store/game-store'
-import { useRoomStore } from '@/store/room-store'
-import type { Timer } from '@/lib/timer-manager'
+import { useAuthStore, useGameStore } from '@/store'
+import type { Round } from '@/store/game-store'
+import { useSessionContext } from '@/components'
 
 interface UseGameSocketProps {
   roomId: string
-  roundId: string
   onGameStart?: () => void
   onRoundStart?: () => void
   onRoundEnd?: (scores: Record<string, number>) => void
   onAnswerSubmitted?: (userId: string, answer: string) => void
   onVoteSubmitted?: (userId: string, votedForUserId: string) => void
-  onTimerTick?: (timeLeft: number, phase: Timer['phase']) => void
-  onTimerEnd?: (phase: Timer['phase']) => void
+  onTimerTick?: (timeLeft: number, phase: string) => void
+  onTimerEnd?: (phase: string) => void
 }
 
 export function useGameSocket({
   roomId,
-  roundId,
   onGameStart,
   onRoundStart,
   onRoundEnd,
@@ -29,217 +27,209 @@ export function useGameSocket({
   onTimerTick,
   onTimerEnd
 }: UseGameSocketProps) {
-  const { socket, setLastEvent } = useWebSocketStore()
+  console.log('__________ useGameSocket __________', roomId);
+  const { socket } = useSocket()
+
+  const { user } = useSessionContext()
+
   const {
-    setGamePhase,
+    roundId,
     setCurrentRound,
     updateRounds,
-    setScores,
+    setTotalRounds,
+    setGamePhase,
     setHasSubmittedAnswer,
     setHasVoted,
-    setPlayersOnline
-  } = useGameStore()
-  const { updateRoomStatus } = useRoomStore()
+    setUserAnswer,
+    setVotedAnswerId,
+    setAnswers,
+    setVotes,
+   } = useGameStore()
 
   const submitAnswer = useCallback(
     (answer: string) => {
       if (!socket) return
-      socket.emit(SOCKET_EVENTS.SUBMIT_ANSWER, { roomId, roundId, answer })
+      console.log('__________ submitAnswer __________', roomId, roundId, answer);
+      if (answer.trim() === '') {
+        toast.error('Please enter an answer')
+        return
+      }
+      socket.emit(SOCKET_EVENTS.GAME_ANSWER_SUBMIT, { roomId, roundId, answer })
     },
     [socket, roomId, roundId]
   )
 
   const submitVote = useCallback(
-    (votedForUserId: string) => {
+    (votedAnswerId: string) => {
       if (!socket) return
-      socket.emit(SOCKET_EVENTS.SUBMIT_VOTE, { roomId, roundId, votedForUserId })
+      socket.emit(SOCKET_EVENTS.GAME_VOTE_SUBMIT, { roomId, roundId, votedAnswerId })
     },
     [socket, roomId, roundId]
   )
 
-  useEffect(() => {
+  const sendForGameStateSync = useCallback(( roomId: string ) => {
+
+    console.log('__________ sendForGameStateSync __________', roomId);
     if (!socket) return
+    socket.emit(SOCKET_EVENTS.GAME_STATE_REQUEST, { roomId })
+  }, [socket, roomId])
 
-    // Game started
-    const handleGameStarted = (data: {
-      roomId: string
-      totalRounds: number
-      rounds: Array<{ id: string; roundNumber: number }>
-    }) => {
-      console.log('Game started:', data)
-      setLastEvent(SOCKET_EVENTS.GAME_STARTED, data)
-      updateRoomStatus('in_progress')
-      updateRounds(data.rounds.map(r => ({
-        id: r.id,
-        sno: r.roundNumber,
-        status: 'pending',
-        question: '',
-        createdAt: new Date().toISOString(),
-        roomId: data.roomId,
-        answers: [],
-        votes: []
-      })))
-      onGameStart?.()
-      toast.success('Game started!')
-    }
+  const handleGameStateSync = useCallback((data: { roomId: string; currentRound: Round; totalRounds: number; status: string; currentQuestion?: string; timeRemaining: number; answers: Array<{ userId: string; answer: string; id: string }>; votes: Array<{ userId: string; answerId: string }> }) => {
+    console.log('Game state synced:', data)
+    const UserAnswered = data.answers.find(answer => answer.userId === user?.id)
+    const votesMap = new Map<string, string[]>()
+    data.votes.forEach((vote) => {
+      votesMap.set(vote.answerId, [...(votesMap.get(vote.answerId) || []), vote.userId])
+    })
+    console.log('__________ votesMap in handleGameStateSync __________', votesMap);
+    console.log('__________ data.votes __________', data.votes);
+    
+    const UserVoted = data.votes.find(vote => vote.userId === user?.id) ;
+    setHasSubmittedAnswer(!!UserAnswered)
+    setUserAnswer(UserAnswered?.answer || '')
+    setHasVoted(!!UserVoted)
+    setVotedAnswerId(UserVoted?.answerId || null)
+    setCurrentRound({
+      ...data.currentRound,
+    })
+    setTotalRounds(data.totalRounds)
+    setGamePhase({ 
+      type: data.status === 'answering' ? 'answering' : data.status === 'voting' ? 'voting' : 'waiting',
+      timeLeft: data.timeRemaining,
+      totalTime: data.timeRemaining,
+      totalRounds: data.totalRounds,
+      roundSno: data.currentRound.sno
+    })
+    setAnswers(data.answers)
+    setVotes(votesMap)
+  }, [setCurrentRound, setTotalRounds, setGamePhase])
 
-    // Round started
-    const handleRoundStarted = (data: {
-      roomId: string
-      roundId: string
-      roundNumber: number
-      question: string
-      timeLeft: number
-      timeTotal: number
-    }) => {
-      console.log('Round started:', data)
-      setLastEvent(SOCKET_EVENTS.ROUND_STARTED, data)
-      setGamePhase({
-        type: 'answering',
-        timeLeft: data.timeLeft,
-        totalTime: data.timeTotal
-      })
-      setCurrentRound({
-        id: data.roundId,
-        sno: data.roundNumber,
-        question: data.question,
-        createdAt: new Date().toISOString(),
-        roomId: data.roomId,
-        answers: [],
-        votes: []
-      })
-      setHasSubmittedAnswer(false)
-      setHasVoted(false)
-      onRoundStart?.()
-      toast.info('Round started')
-    }
+  const handleGameStart = useCallback((data: { message: string, rounds: Array<{ id: string; question: string; sno: number }> }) => {
+    console.log('Game started')
+    // Convert the data to match our Round type
+    const convertedRounds = data.rounds.map(round => ({
+      id: round.id,
+      question: round.question,
+      status: 'pending' as const,
+      sno: round.sno,
+      createdAt: new Date().toISOString(),
+      roomId: roomId,
+      answers: [],
+      votes: []
+    }))
+    updateRounds(convertedRounds)
+    onGameStart?.()
+  }, [updateRounds, onGameStart, roomId])
 
-    // Timer tick
-    const handleTimerTick = (data: {
-      roomId: string
-      roundId: string
-      phase: Timer['phase']
-      timeLeft: number
-      serverTime: number
-    }) => {
-      setLastEvent(SOCKET_EVENTS.TIMER_TICK, data)
-      setGamePhase(prev => ({
-        ...prev,
-        type: data.phase,
-        timeLeft: data.timeLeft
-      }))
-      onTimerTick?.(data.timeLeft, data.phase)
-    }
+  const handleGameStateUpdate = useCallback((data: {totalRounds: number, currentRound: number}) => {
+    console.log('Game state updated:', data)
+    setTotalRounds(data.totalRounds)
+  }, [setTotalRounds])
 
-    // Round ended
-    const handleRoundEnded = (data: {
-      roomId: string
-      roundId: string
-      scores: Record<string, number>
-    }) => {
-      console.log('Round ended:', data)
-      setLastEvent(SOCKET_EVENTS.ROUND_ENDED, data)
-      setGamePhase({ type: 'results' })
-      setScores(Object.entries(data.scores).map(([userId, points]) => ({
-        userId,
-        points,
-        user: undefined
-      })))
-      onRoundEnd?.(data.scores)
-      toast.info('Round ended')
-    }
+  const handleRoundStart = useCallback((data: { roomId: string; roundId: string; roundNumber: number; question: string; timeLeft: number; timeTotal: number }) => {
+    console.log('Round started')
+    console.log('__________ handleRoundStart __________', data);
+    sendForGameStateSync(roomId)
+    setGamePhase({ 
+      type: 'answering',
+      roundSno: data.roundNumber,
+      timeLeft: data.timeLeft,
+      totalTime: data.timeTotal
+    })
+    onRoundStart?.()
+  }, [setGamePhase, onRoundStart, sendForGameStateSync])
 
-    // Answer submitted
-    const handleAnswerSubmitted = (data: {
-      roomId: string
-      roundId: string
-      userId: string
-      answer: string
-    }) => {
-      setLastEvent(SOCKET_EVENTS.ANSWER_SUBMITTED, data)
-      if (data.userId === socket.data?.userId) {
-        setHasSubmittedAnswer(true)
-        toast.success('Answer submitted successfully')
-      }
-      onAnswerSubmitted?.(data.userId, data.answer)
-    }
+  const handleRoundEnd = useCallback((data: { scores: Record<string, number> }) => {
+    console.log('Round ended:', data.scores)
+    onRoundEnd?.(data.scores)
+  }, [onRoundEnd])
 
-    // Vote submitted
-    const handleVoteSubmitted = (data: {
-      roomId: string
-      roundId: string
-      userId: string
-      votedForUserId: string
-    }) => {
-      setLastEvent(SOCKET_EVENTS.VOTE_SUBMITTED, data)
-      if (data.userId === socket.data?.userId) {
-        setHasVoted(true)
-        toast.success('Vote submitted successfully')
-      }
-      onVoteSubmitted?.(data.userId, data.votedForUserId)
-    }
+  const handleAnswerSubmitted = useCallback((data: { userId: string; answer: string }) => {
+    console.log('Answer submitted:', data)
+    setHasSubmittedAnswer(true)
+    setUserAnswer(data.answer)
+    onAnswerSubmitted?.(data.userId, data.answer)
+  }, [onAnswerSubmitted, setHasSubmittedAnswer, setUserAnswer])
 
-    // Timer ended
-    const handleTimerEnded = (data: {
-      roomId: string
-      roundId: string
-      phase: Timer['phase']
-    }) => {
-      setLastEvent(SOCKET_EVENTS.TIMER_ENDED, data)
-      onTimerEnd?.(data.phase)
-      toast.info(`${data.phase === 'answering' ? 'Answering' : 'Voting'} phase ended`)
-    }
+  const handleVoteSubmitted = useCallback((data: { userId: string; votedAnswerId: string }) => {
+    console.log('Vote submitted:', data)
+    setHasVoted(true)
+    setVotedAnswerId(data.votedAnswerId)
+    onVoteSubmitted?.(data.userId, data.votedAnswerId)
+  }, [onVoteSubmitted, setHasVoted, setVotedAnswerId])
 
-    // Error handling
-    const handleGameError = (data: { message: string }) => {
-      toast.error(data.message)
-    }
+  const handleVotesUpdate = useCallback((data: { votes: Array<{ userId: string; votedAnswerId: string }> }) => {
+    console.log('Votes updated:', data)
+    const votesMap = new Map<string, string[]>()
+    data.votes.forEach((vote) => {
+      votesMap.set(vote.votedAnswerId, [...(votesMap.get(vote.votedAnswerId) || []), vote.userId])
+    })
+    console.log('__________ votesMap __________', votesMap);
+    setVotes(votesMap)
+  }, [setVotes])
 
-    // Bind event handlers
-    socket.on(SOCKET_EVENTS.GAME_STARTED, handleGameStarted)
-    socket.on(SOCKET_EVENTS.ROUND_STARTED, handleRoundStarted)
+  const handleTimerTick = useCallback((data: { timeLeft: number; phase: string }) => {
+    onTimerTick?.(data.timeLeft, data.phase)
+  }, [onTimerTick])
+
+  const handleTimerEnd = useCallback((data: { phase: string }) => {
+    console.log('Timer ended for phase:', data.phase)
+    onTimerEnd?.(data.phase)
+  }, [onTimerEnd])
+
+  const handleGamePhaseUpdate = useCallback((data: { type: string, timeLeft: number, timeTotal: number, totalRounds: number, roundSno: number }) => {
+    console.log('Game phase updated:', data)
+    sendForGameStateSync(roomId)
+    // setGamePhase({
+    //   type: data.type,
+    //   timeLeft: data.timeLeft,
+    //   totalTime: data.timeTotal,
+    //   totalRounds: data.totalRounds,
+    //   roundSno: data.roundSno
+    // })
+  }, [sendForGameStateSync])
+
+  useEffect(() => {
+    if (!socket || !roomId) return
+  
+    console.log('🎮 [useGameSocket] Setting up game listeners for room:', roomId)
+    console.log('🎮 [useGameSocket] Socket connected:', socket.connected)
+    console.log('🎮 [useGameSocket] Socket ID:', socket.id)
+
+    // Attach game event listeners
+    socket.on(SOCKET_EVENTS.GAME_STARTED, handleGameStart)
+    socket.on(SOCKET_EVENTS.GAME_STATE_UPDATE, handleGameStateUpdate)
+    socket.on(SOCKET_EVENTS.GAME_ROUND_START, handleRoundStart)
+    socket.on(SOCKET_EVENTS.GAME_ROUND_END, handleRoundEnd)
+    socket.on(SOCKET_EVENTS.GAME_ANSWER_SUBMITTED, handleAnswerSubmitted)
+    socket.on(SOCKET_EVENTS.GAME_VOTE_SUBMITTED, handleVoteSubmitted)
+    socket.on(SOCKET_EVENTS.GAME_VOTES_UPDATE, handleVotesUpdate)
     socket.on(SOCKET_EVENTS.TIMER_TICK, handleTimerTick)
-    socket.on(SOCKET_EVENTS.ROUND_ENDED, handleRoundEnded)
-    socket.on(SOCKET_EVENTS.ANSWER_SUBMITTED, handleAnswerSubmitted)
-    socket.on(SOCKET_EVENTS.VOTE_SUBMITTED, handleVoteSubmitted)
-    socket.on(SOCKET_EVENTS.TIMER_ENDED, handleTimerEnded)
-    socket.on(SOCKET_EVENTS.GAME_ERROR, handleGameError)
-
+    socket.on(SOCKET_EVENTS.TIMER_END, handleTimerEnd)
+    socket.on(SOCKET_EVENTS.GAME_STATE_RESPONSE, handleGameStateSync)
+    socket.on(SOCKET_EVENTS.GAME_PHASE_UPDATE, handleGamePhaseUpdate)
+    console.log('🎮 [useGameSocket] All listeners attached')
+  
     // Cleanup
     return () => {
-      socket.off(SOCKET_EVENTS.GAME_STARTED, handleGameStarted)
-      socket.off(SOCKET_EVENTS.ROUND_STARTED, handleRoundStarted)
+      console.log('🎮 [useGameSocket] Cleaning up game listeners for room:', roomId)
+      socket.off(SOCKET_EVENTS.GAME_STARTED, handleGameStart)
+      socket.off(SOCKET_EVENTS.GAME_STATE_UPDATE, handleGameStateUpdate)
+      socket.off(SOCKET_EVENTS.GAME_ROUND_START, handleRoundStart)
+      socket.off(SOCKET_EVENTS.GAME_ROUND_END, handleRoundEnd)
+      socket.off(SOCKET_EVENTS.GAME_ANSWER_SUBMIT, handleAnswerSubmitted)
+      socket.off(SOCKET_EVENTS.GAME_VOTE_SUBMITTED, handleVoteSubmitted)
+      socket.off(SOCKET_EVENTS.GAME_VOTES_UPDATE, handleVotesUpdate)
       socket.off(SOCKET_EVENTS.TIMER_TICK, handleTimerTick)
-      socket.off(SOCKET_EVENTS.ROUND_ENDED, handleRoundEnded)
-      socket.off(SOCKET_EVENTS.ANSWER_SUBMITTED, handleAnswerSubmitted)
-      socket.off(SOCKET_EVENTS.VOTE_SUBMITTED, handleVoteSubmitted)
-      socket.off(SOCKET_EVENTS.TIMER_ENDED, handleTimerEnded)
-      socket.off(SOCKET_EVENTS.GAME_ERROR, handleGameError)
+      socket.off(SOCKET_EVENTS.TIMER_END, handleTimerEnd)
+      socket.off(SOCKET_EVENTS.GAME_STATE_SYNC, handleGameStateSync)
     }
-  }, [
-    socket,
-    roomId,
-    roundId,
-    setGamePhase,
-    setCurrentRound,
-    updateRounds,
-    setScores,
-    setHasSubmittedAnswer,
-    setHasVoted,
-    setPlayersOnline,
-    updateRoomStatus,
-    setLastEvent,
-    onGameStart,
-    onRoundStart,
-    onRoundEnd,
-    onAnswerSubmitted,
-    onVoteSubmitted,
-    onTimerTick,
-    onTimerEnd
-  ])
+  }, [socket, roomId, handleGameStart, handleRoundStart, handleRoundEnd, handleAnswerSubmitted, handleVoteSubmitted, handleTimerTick, handleTimerEnd, handleGameStateSync])
 
   return {
     submitAnswer,
-    submitVote
+    submitVote,
+    sendForGameStateSync,
+    isConnected: socket?.connected || false,
   }
 }

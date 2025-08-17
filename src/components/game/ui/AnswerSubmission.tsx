@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { usePersistentSocket } from '@/hooks/socket-hooks'
+import { useSocket } from '@/hooks/socket-hooks'
 import { useGameStore } from '@/store/game-store'
 import { useWebSocketStore } from '@/store/websocket-store'
 import { toast } from 'sonner'
@@ -19,7 +19,7 @@ interface AnswerSubmissionProps {
 export function AnswerSubmission({ roomId, roundId, question, timeLimit }: AnswerSubmissionProps) {
   const [answer, setAnswer] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const { socket } = usePersistentSocket()
+  const { socket } = useSocket()
   const { gamePhase, setUserAnswer, setHasSubmittedAnswer } = useGameStore()
   const { submitAnswer } = useWebSocketStore()
   

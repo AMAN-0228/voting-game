@@ -29,6 +29,7 @@ export interface RoomEvents {
     hostId: string 
   }) => void
   'room:error': (data: { message: string }) => void
+  'room:status:update': (data: { status: string }) => void
 }
 
 // Game Events

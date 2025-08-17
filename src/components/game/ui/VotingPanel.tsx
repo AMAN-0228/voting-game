@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useSocketConnection } from '@/hooks/socket-hooks'
+import { useSocket } from '@/hooks/socket-hooks'
 import { useSession } from 'next-auth/react'
 import { Round, Answer } from '@/store/game-store'
+import { useWebSocketStore } from '@/store/websocket-store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -20,7 +21,8 @@ export const VotingPanel = ({ round, hasVoted, timeLeft }: VotingPanelProps) => 
   const { data: session } = useSession()
   const [selectedAnswerId, setSelectedAnswerId] = useState<string | null>(null)
   const [isVoting, setIsVoting] = useState(false)
-  const { submitVote, isConnected } = useWebSocket()
+  const { socket, isConnected } = useSocket()
+  const { submitVote } = useWebSocketStore()
 
   // Filter out user's own answer (can't vote for yourself)
   const votableAnswers = round.answers.filter(answer => answer.userId !== session?.user?.id)

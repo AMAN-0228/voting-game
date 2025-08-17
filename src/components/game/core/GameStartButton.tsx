@@ -3,8 +3,9 @@
 import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Play, Loader2 } from 'lucide-react'
-import { usePersistentSocket } from '@/hooks/socket-hooks'
+import { useSocket } from '@/hooks/socket-hooks'
 import { toast } from 'sonner'
+import { SOCKET_EVENTS } from '@/constants/api-routes'
 
 interface GameStartButtonProps {
   roomId: string
@@ -14,7 +15,7 @@ interface GameStartButtonProps {
 
 export default function GameStartButton({ roomId, isHost, roomStatus }: GameStartButtonProps) {
   const [isStarting, setIsStarting] = useState(false)
-  const { socket, isConnected } = usePersistentSocket()
+  const { socket, isConnected } = useSocket()
 
   const handleStartGame = async () => {
     if (!isConnected || !socket) {
@@ -36,7 +37,7 @@ export default function GameStartButton({ roomId, isHost, roomStatus }: GameStar
     
     try {
       // Emit game start event
-      socket.emit('game:start', { roomId, numRounds: 3 })
+      socket.emit(SOCKET_EVENTS.GAME_START, { roomId, numRounds: 3 })
       
       toast.success('Starting game...')
     } catch (error) {

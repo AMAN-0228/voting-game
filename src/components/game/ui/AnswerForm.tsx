@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSocketConnection } from '@/hooks/socket-hooks'
+import { useSocket } from '@/hooks/socket-hooks'
+import { useWebSocketStore } from '@/store/websocket-store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,17 +11,18 @@ import { toast } from 'sonner'
 import { CheckCircle, Clock, Send, Loader2, AlertCircle, Sparkles, Target, Zap } from 'lucide-react'
 
 interface AnswerFormProps {
-  roundId: string
+  userAnswer: string
   hasSubmitted: boolean
   timeLeft?: number
+  handleSubmitAnswer: (answer: string) => void
 }
 
-export const AnswerForm = ({ roundId, hasSubmitted, timeLeft }: AnswerFormProps) => {
+export const AnswerForm = ({ userAnswer, hasSubmitted, timeLeft, handleSubmitAnswer }: AnswerFormProps) => {
   const [answer, setAnswer] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [charCount, setCharCount] = useState(0)
   const [isTyping, setIsTyping] = useState(false)
-  const { submitAnswer, isConnected } = useWebSocket()
+  const { socket, isConnected } = useSocket()
 
   const maxLength = 500
   const isNearLimit = charCount > maxLength * 0.8
@@ -57,7 +59,7 @@ export const AnswerForm = ({ roundId, hasSubmitted, timeLeft }: AnswerFormProps)
 
     setIsSubmitting(true)
     try {
-      submitAnswer(roundId, answer.trim())
+      handleSubmitAnswer(answer)
       setAnswer('')
       toast.success('Answer submitted successfully!')
     } catch (error) {
@@ -92,6 +94,7 @@ export const AnswerForm = ({ roundId, hasSubmitted, timeLeft }: AnswerFormProps)
               ✓ Answer Submitted
             </Badge>
             <h3 className="text-xl font-semibold text-gray-800 mb-3">Great job!</h3>
+            <p className="text-gray-600 text-lg max-w-md mx-auto">Your answer: <span className="font-bold">{userAnswer}</span></p>
             <p className="text-gray-600 text-lg max-w-md mx-auto">
               Waiting for other players to submit their answers...
             </p>
