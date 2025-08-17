@@ -6,7 +6,7 @@
     "dev": "next dev",
     "dev:socket": "tsx watch server.ts",
     "build": "cross-env NEXT_SKIP_TYPECHECK=true next build",
-    "start": "prisma migrate deploy && cross-env NODE_ENV=production NEXT_CACHE_DIR=.next-cache tsx server.ts",
+    "start": "cross-env NODE_ENV=production NEXT_CACHE_DIR=.next-cache tsx server.ts",
     "lint": "next lint",
     "clean": "rimraf .next .next-cache .turbo"
   },
