@@ -4,6 +4,9 @@
 
 :root {
   --radius: 0.625rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -78,4 +81,85 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Ensure rounded corners for UI elements */
+  button, .btn, [data-slot="button"] {
+    border-radius: var(--radius-md) !important;
+  }
+  
+  .badge, [data-slot="badge"] {
+    border-radius: var(--radius-md) !important;
+  }
+  
+  .card, .dialog, .popover {
+    border-radius: var(--radius-lg) !important;
+  }
+  
+  .input, input[type="text"], input[type="email"], input[type="password"] {
+    border-radius: var(--radius-md) !important;
+  }
+}
+
+@layer utilities {
+  /* Additional utility classes for rounded corners */
+  .rounded-ui {
+    border-radius: var(--radius-md);
+  }
+  
+  .rounded-ui-sm {
+    border-radius: var(--radius-sm);
+  }
+  
+  .rounded-ui-lg {
+    border-radius: var(--radius-lg);
+  }
+  
+  /* Ensure Tailwind rounded classes work properly */
+  .rounded-sm {
+    border-radius: 0.125rem !important;
+  }
+  
+  .rounded-md {
+    border-radius: var(--radius-md) !important;
+  }
+  
+  .rounded-lg {
+    border-radius: var(--radius-lg) !important;
+  }
+  
+  .rounded-xl {
+    border-radius: 1rem !important;
+  }
+  
+  .rounded-2xl {
+    border-radius: 1.5rem !important;
+  }
+  
+  .rounded-full {
+    border-radius: 9999px !important;
+  }
+}
+
+/* Force rounded corners with maximum specificity */
+button.rounded-md,
+.btn.rounded-md,
+[data-slot="button"].rounded-md {
+  border-radius: var(--radius-md) !important;
+}
+
+.badge.rounded-md,
+[data-slot="badge"].rounded-md {
+  border-radius: var(--radius-md) !important;
+}
+
+.card.rounded-xl,
+.dialog.rounded-lg,
+.popover.rounded-lg {
+  border-radius: var(--radius-lg) !important;
+}
+
+input.rounded-md,
+.input.rounded-md,
+[data-slot="input"].rounded-md {
+  border-radius: var(--radius-md) !important;
 }
