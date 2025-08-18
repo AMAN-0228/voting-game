@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { Gamepad2, Settings, Clock, Play, X } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 
 interface CreateRoomDialogProps {
   open: boolean
@@ -21,6 +22,8 @@ export const CreateRoomDialog = ({ open, onClose, onCreated }: CreateRoomDialogP
   const [roundTime, setRoundTime] = useState(60)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const { data: session } = useSession()
 
   if (!open) return null
 
@@ -43,9 +46,20 @@ export const CreateRoomDialog = ({ open, onClose, onCreated }: CreateRoomDialogP
     e.preventDefault()
     if (!validate()) return
 
+    if (!session?.user?.id) {
+      toast.error('You must be logged in to create a room')
+      return
+    }
+
     try {
       setIsSubmitting(true)
-      const { data, error } = await roomHelpers.createRoom({ numRounds, roundTime })
+      
+      // Backend will generate the room code and get hostId from session
+      const { data, error } = await roomHelpers.createRoom({ 
+        numRounds, 
+        roundTime
+      })
+      
       if (error || !data) {
         toast.error(error || 'Failed to create room')
         return

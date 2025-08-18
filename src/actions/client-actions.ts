@@ -4,22 +4,6 @@ import { Socket } from 'socket.io-client'
 /**
  * Start a new game
  */
-export async function startGame(roomId: string, numRounds: number = 3) {
-  const response = await fetch(API_ROUTES.GAME_MANAGEMENT.START(roomId), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ numRounds })
-  })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'Failed to start game')
-  }
-
-  return response.json()
-}
 
 /**
  * Submit an answer with acknowledgment

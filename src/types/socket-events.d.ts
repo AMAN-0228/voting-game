@@ -161,7 +161,13 @@ export interface TimerEvents {
 }
 
 // Server to Client Events
-export interface ServerToClientEvents extends RoomEvents, GameEvents, TimerEvents {}
+export interface ServerToClientEvents extends RoomEvents, GameEvents, TimerEvents {
+  // Basic Socket.IO events
+  connect: () => void
+  disconnect: (reason: string) => void
+  error: (error: Error) => void
+  connect_error: (error: Error) => void
+}
 
 // Client to Server Events
 export interface ClientToServerEvents {
