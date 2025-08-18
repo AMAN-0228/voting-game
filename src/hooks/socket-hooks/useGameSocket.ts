@@ -27,7 +27,7 @@ export function useGameSocket({
   onTimerTick,
   onTimerEnd
 }: UseGameSocketProps) {
-  console.log('__________ useGameSocket __________', roomId);
+  // console.log('__________ useGameSocket __________', roomId);
   const { socket } = useSocket()
 
   const { user } = useSessionContext()
@@ -49,7 +49,7 @@ export function useGameSocket({
   const submitAnswer = useCallback(
     (answer: string) => {
       if (!socket) return
-      console.log('__________ submitAnswer __________', roomId, roundId, answer);
+      // console.log('__________ submitAnswer __________', roomId, roundId, answer);
       if (answer.trim() === '') {
         toast.error('Please enter an answer')
         return
@@ -69,7 +69,7 @@ export function useGameSocket({
 
   const sendForGameStateSync = useCallback(( roomId: string ) => {
 
-    console.log('__________ sendForGameStateSync __________', roomId);
+    // console.log('__________ sendForGameStateSync __________', roomId);
     if (!socket) return
     socket.emit(SOCKET_EVENTS.GAME_STATE_REQUEST, { roomId })
   }, [socket, roomId])
@@ -81,8 +81,8 @@ export function useGameSocket({
     data.votes.forEach((vote) => {
       votesMap.set(vote.answerId, [...(votesMap.get(vote.answerId) || []), vote.userId])
     })
-    console.log('__________ votesMap in handleGameStateSync __________', votesMap);
-    console.log('__________ data.votes __________', data.votes);
+    // console.log('__________ votesMap in handleGameStateSync __________', votesMap);
+    // console.log('__________ data.votes __________', data.votes);
     
     const UserVoted = data.votes.find(vote => vote.userId === user?.id) ;
     setHasSubmittedAnswer(!!UserAnswered)
@@ -128,7 +128,7 @@ export function useGameSocket({
 
   const handleRoundStart = useCallback((data: { roomId: string; roundId: string; roundNumber: number; question: string; timeLeft: number; timeTotal: number }) => {
     console.log('Round started')
-    console.log('__________ handleRoundStart __________', data);
+    // console.log('__________ handleRoundStart __________', data);
     sendForGameStateSync(roomId)
     setGamePhase({ 
       type: 'answering',
@@ -164,7 +164,7 @@ export function useGameSocket({
     data.votes.forEach((vote) => {
       votesMap.set(vote.votedAnswerId, [...(votesMap.get(vote.votedAnswerId) || []), vote.userId])
     })
-    console.log('__________ votesMap __________', votesMap);
+    // console.log('__________ votesMap __________', votesMap);
     setVotes(votesMap)
   }, [setVotes])
 

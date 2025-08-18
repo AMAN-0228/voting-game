@@ -110,7 +110,7 @@ export async function getRoundSummary(roomId: string, userId: string): Promise<A
       },
       orderBy: { sno: 'asc' }
     })
-    console.dir(rounds, { depth: null })
+    // console.dir(rounds, { depth: null })
     // Transform the data to include vote counts and winners
     const transformedRounds = rounds.map(round => {
       // Calculate vote counts for each answer

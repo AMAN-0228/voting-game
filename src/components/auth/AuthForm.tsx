@@ -9,7 +9,6 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 
 export type AuthMode = 'login' | 'register'
@@ -168,12 +167,6 @@ export const AuthForm = ({ mode }: AuthFormProps) => {
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? 'Please wait…' : action}
             </Button>
-
-            <div className="text-center text-xs text-gray-500">
-              <Badge variant="outline" className="mt-2">
-                Mobile-first UI • ShadCN
-              </Badge>
-            </div>
           </form>
         </CardContent>
       </Card>
