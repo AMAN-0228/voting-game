@@ -95,70 +95,70 @@ export async function joinRoom(roomId: string, userId: string) {
 /**
  * Remove player from room
  */
-export async function leaveRoom(roomId: string, userId: string) {
-  // Check if room exists
-  const room = await prisma.room.findUnique({
-    where: { id: roomId }
-  })
+// export async function leaveRoom(roomId: string, userId: string) {
+//   // Check if room exists
+//   const room = await prisma.room.findUnique({
+//     where: { id: roomId }
+//   })
 
-  if (!room) {
-    throw new Error('Room not found')
-  }
+//   if (!room) {
+//     throw new Error('Room not found')
+//   }
 
-  // Remove player from room
-  await prisma.room.update({
-    where: { id: roomId },
-    data: {
-      players: {
-        disconnect: { id: userId }
-      }
-    }
-  })
+//   // Remove player from room
+//   await prisma.room.update({
+//     where: { id: roomId },
+//     data: {
+//       players: {
+//         disconnect: { id: userId }
+//       }
+//     }
+//   })
 
-  // If host left, assign new host or delete room
-  if (room.hostId === userId) {
-    const remainingPlayers = await prisma.room.findUnique({
-      where: { id: roomId },
-      include: {
-        players: true
-      }
-    })
+//   // If host left, assign new host or delete room
+//   if (room.hostId === userId) {
+//     const remainingPlayers = await prisma.room.findUnique({
+//       where: { id: roomId },
+//       include: {
+//         players: true
+//       }
+//     })
 
-    if (remainingPlayers?.players.length === 0) {
-      // Delete empty room
-      await prisma.room.delete({
-        where: { id: roomId }
-      })
-    } else {
-      // Assign new host
-      await prisma.room.update({
-        where: { id: roomId },
-        data: {
-          hostId: remainingPlayers!.players[0].id
-        }
-      })
-    }
-  }
-}
+//     if (remainingPlayers?.players.length === 0) {
+//       // Delete empty room
+//       await prisma.room.delete({
+//         where: { id: roomId }
+//       })
+//     } else {
+//       // Assign new host
+//       await prisma.room.update({
+//         where: { id: roomId },
+//         data: {
+//           hostId: remainingPlayers!.players[0].id
+//         }
+//       })
+//     }
+//   }
+// }
 
 /**
  * Update room settings
- */
-export async function updateRoomSettings(roomId: string, hostId: string, settings: any) {
-  const room = await prisma.room.findUnique({
-    where: { id: roomId }
-  })
+//  */
+// export async function updateRoomSettings(roomId: string, hostId: string, settings: any) {
+//   const room = await prisma.room.findUnique({
+//     where: { id: roomId }
+//   })
 
-  if (!room) {
-    throw new Error('Room not found')
-  }
+//   if (!room) {
+//     throw new Error('Room not found')
+//   }
 
-  if (room.hostId !== hostId) {
-    throw new Error('Only host can update settings')
-  }
+//   if (room.hostId !== hostId) {
+//     throw new Error('Only host can update settings')
+//   }
 
-  return prisma.room.update({
-    where: { id: roomId },
-    data: { settings }
-  })
-}
+//   return prisma.room.update({
+//     where: { id: roomId },
+//     data: { settings }
+//   })
+// }

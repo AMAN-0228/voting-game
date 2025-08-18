@@ -154,7 +154,7 @@ export const useRoomStore = create<RoomState>()(
       
       // Actions
       setCurrentRoom: (room, currentUserId) => {
-        console.log('___________ setCurrentRoom', { room, currentUserId, isInRoom: !!room, isHost: room ? room.hostId === currentUserId : false });
+        // console.log('___________ setCurrentRoom', { room, currentUserId, isInRoom: !!room, isHost: room ? room.hostId === currentUserId : false });
         set({ 
           currentRoom: room,
           isInRoom: !!room,
@@ -175,12 +175,12 @@ export const useRoomStore = create<RoomState>()(
       })),
       
       setIsHost: (isHost) => {
-        console.log('___________ setIsHost', isHost);
+        // console.log('___________ setIsHost', isHost);
         set({ isHost })
       },
       
       setIsInRoom: (inRoom) => {
-        console.log('___________ setIsInRoom', inRoom);
+        // console.log('___________ setIsInRoom', inRoom);
         set({ isInRoom: inRoom })
       },
       
@@ -233,7 +233,7 @@ export const useRoomStore = create<RoomState>()(
       })),
       
       updateRoomStatus: (status) => {
-        console.log('🔄 Room store: updateRoomStatus called with status:', status)
+        // console.log('🔄 Room store: updateRoomStatus called with status:', status)
         set((state) => ({
           currentRoom: state.currentRoom
             ? { ...state.currentRoom, status }

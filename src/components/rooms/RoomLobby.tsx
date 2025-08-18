@@ -85,7 +85,7 @@ export const RoomLobby = ({ roomId, joinRoomAction, isJoining }: RoomLobbyProps)
         </div>
         {/* Waiting Message - Show when room is starting and user is not host */}
         
-        <LobbyContent status={currentRoom?.status} isInRoom={isInRoom} isHost={isHost} />
+        <LobbyContent status={currentRoom?.status || ''} isInRoom={isInRoom} isHost={isHost} />
       </div>
     </div>
   )

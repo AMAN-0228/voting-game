@@ -24,18 +24,7 @@ export const API_ROUTES = {
     GET_BY_ROOM: (roomId: string) => `/api/rounds/room/${roomId}`,
     GET_SUMMARY: (roomId: string) => `/api/rounds/room/${roomId}/summary`,
     GET_BY_ID: (id: string) => `/api/rounds/${id}`,
-    START: (id: string) => `/api/rounds/${id}/start`,
     END: (id: string) => `/api/rounds/${id}/end`,
-    START_BY_ROOM: (roomId: string, roundId: string) => `/api/rooms/${roomId}/rounds/${roundId}/start`,
-  },
-
-  // Game management routes
-  GAME_MANAGEMENT: {
-    START: (roomId: string) => `/api/rooms/${roomId}/game/start`,
-    END: (roomId: string) => `/api/rooms/${roomId}/game/end`,
-    PAUSE: (roomId: string) => `/api/rooms/${roomId}/game/pause`,
-    RESUME: (roomId: string) => `/api/rooms/${roomId}/game/resume`,
-    STATUS: (roomId: string) => `/api/rooms/${roomId}/game/status`,
   },
 
   // Answer management routes
