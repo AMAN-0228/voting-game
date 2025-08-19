@@ -87,12 +87,12 @@ export default function RoomPage() {
   }
 
  
-  console.log('_________ 13🔄 currentRoom', currentRoom)
+  // console.log('_________ 13🔄 currentRoom', currentRoom)
   // If we have room data, show the room content regardless of loading states
   if (currentRoom) {
     const isHost = currentRoom.hostId === session?.user?.id
 
-    console.log('🔄 RoomPage: Rendering with status:', currentRoom.status, 'isInRoom:', isInRoom, 'isHost:', isHost)
+    // console.log('🔄 RoomPage: Rendering with status:', currentRoom.status, 'isInRoom:', isInRoom, 'isHost:', isHost)
 
     return (
       <div className="min-h-screen bg-gray-50">

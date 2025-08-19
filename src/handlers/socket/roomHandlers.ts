@@ -158,7 +158,7 @@ export function registerRoomHandlers(
 
 export function emitRoomStatusUpdate(roomId: string, status: string) {
   const io = getIO()
-  console.log('__________ emitRoomStatusUpdate __________', roomId, status);
+  // console.log('__________ emitRoomStatusUpdate __________', roomId, status);
   if (io) {
     io.to(roomId).emit(SOCKET_EVENTS.ROOM_STATUS_UPDATE, { status })
   }

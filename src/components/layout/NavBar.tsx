@@ -50,19 +50,19 @@ const NavBar = React.memo(() => {
     <div className="hidden md:flex items-center space-x-8">
       <Link 
         href="/" 
-        // onClick={handleHomeClick}
+        onClick={handleHomeClick}
         className="text-gray-700 hover:text-purple-600 transition-colors font-medium"
       >
         Home
       </Link>
-      {userInfo?.isAuthenticated && (
+      {/* {userInfo?.isAuthenticated && (
         <Link 
           href="/profile" 
           className="text-gray-700 hover:text-purple-600 transition-colors font-medium"
         >
           Profile
         </Link>
-      )}
+      )} */}
     </div>
   ), [userInfo?.isAuthenticated])
 
@@ -93,7 +93,7 @@ const NavBar = React.memo(() => {
             onClick={handleSignOut}
             variant="outline"
             size="sm"
-            className="border-gray-300 text-gray-700 hover:bg-gray-50"
+            className="border-gray-300 hover:bg-gray-50"
           >
             <LogOut className="w-4 h-4 mr-2" />
             Sign Out
